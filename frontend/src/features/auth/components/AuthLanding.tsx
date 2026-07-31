@@ -1,11 +1,10 @@
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type MouseEvent } from 'react';
 import vatLogo from '../../../assets/vat_logo.jpg';
 import vatClass from '../../../assets/vat_class.jpg';
 import { Button, Field, PrimaryButton } from '../../../components/shared/ui';
 import {
     BellIcon,
-    ChevronRightIcon,
     XIcon,
 } from '../../../components/shared/icons';
 
@@ -35,18 +34,13 @@ const demoAccounts = [
     { role: 'Quản trị', username: 'admin', password: 'admin123', note: 'Điều phối hệ thống VAT LMS' },
 ];
 
-const trustItems = [
-    { label: 'Responsive', value: 'Mobile-first' },
-    { label: 'Dữ liệu', value: 'Realtime LMS' },
-    { label: 'Truy cập', value: 'Nội bộ VAT' },
-];
-
 export function AuthLanding({ showLogin, message, loginForm, setShowLogin, setLoginForm, onLogin }: Props) {
     const [popup, setPopup] = useState<LandingPopup>(showLogin ? 'login' : null);
     const [supportName, setSupportName] = useState('Học viên lớp Điện Ô tô B1');
     const [supportPhone, setSupportPhone] = useState('0961001001');
     const [supportContent, setSupportContent] = useState('Tôi cần hỗ trợ đăng nhập tài khoản học sinh trong hệ thống VAT LMS.');
     const [supportSent, setSupportSent] = useState(false);
+    const [mouseSpot, setMouseSpot] = useState({ x: 0, y: 0, active: false });
 
     const openLogin = () => {
         setShowLogin(true);
@@ -69,83 +63,107 @@ export function AuthLanding({ showLogin, message, loginForm, setShowLogin, setLo
         setSupportSent(true);
     };
 
-    return (
-        <main className="relative min-h-screen overflow-hidden bg-[#f8f8fa] text-slate-950 dark:bg-slate-950 dark:text-white">
-            <div className="pointer-events-none absolute -left-32 -top-32 h-72 w-72 rounded-full bg-red-900/10 blur-3xl" />
-            <div className="pointer-events-none absolute right-[-8rem] top-8 h-80 w-80 rounded-full bg-rose-900/10 blur-3xl" />
-            <div className="pointer-events-none absolute bottom-[-12rem] left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-amber-500/10 blur-3xl" />
+    const handleMouseMove = (event: MouseEvent<HTMLElement>) => {
+        setMouseSpot({ x: event.clientX, y: event.clientY, active: true });
+    };
 
-            <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+    return (
+        <main onMouseMove={handleMouseMove} onMouseLeave={() => setMouseSpot((current) => ({ ...current, active: false }))} className="relative min-h-screen overflow-hidden bg-[#fbfafb] text-slate-950 dark:bg-slate-950 dark:text-white">
+            <motion.div className="pointer-events-none fixed left-[6%] top-[18%] z-0 hidden h-[28rem] w-[28rem] rounded-full bg-red-600/[0.055] blur-3xl lg:block dark:bg-red-400/10" animate={{ x: mouseSpot.active ? (mouseSpot.x - window.innerWidth / 2) * 0.045 : 0, y: mouseSpot.active ? (mouseSpot.y - window.innerHeight / 2) * 0.045 : 0, scale: mouseSpot.active ? 1.08 : 1 }} transition={{ type: 'spring', stiffness: 70, damping: 24, mass: 0.8 }} />
+            <motion.div className="pointer-events-none fixed right-[8%] top-[26%] z-0 hidden h-[24rem] w-[24rem] rounded-full bg-amber-400/[0.075] blur-3xl lg:block dark:bg-amber-300/10" animate={{ x: mouseSpot.active ? (window.innerWidth / 2 - mouseSpot.x) * 0.035 : 0, y: mouseSpot.active ? (window.innerHeight / 2 - mouseSpot.y) * 0.035 : 0, scale: mouseSpot.active ? 1.06 : 1 }} transition={{ type: 'spring', stiffness: 70, damping: 24, mass: 0.8 }} />
+            <motion.div className="pointer-events-none absolute -left-32 top-0 h-80 w-80 rounded-full bg-red-950/[0.035] blur-3xl dark:bg-red-500/10" animate={{ x: [0, 18, 0], y: [0, 12, 0], scale: [1, 1.06, 1] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }} />
+            <motion.div className="pointer-events-none absolute right-[-8rem] top-24 h-[34rem] w-[34rem] rounded-full bg-red-900/[0.035] blur-3xl dark:bg-red-500/10" animate={{ x: [0, -18, 0], y: [0, -14, 0], scale: [1, 1.04, 1] }} transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }} />
+            <motion.div className="pointer-events-none absolute left-[48%] top-28 hidden h-3 w-3 rounded-full bg-red-700/20 lg:block" animate={{ y: [0, -18, 0], opacity: [0.25, 0.65, 0.25] }} transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }} />
+            <motion.div className="pointer-events-none absolute left-[56%] top-[72%] hidden h-2 w-2 rounded-full bg-amber-500/30 lg:block" animate={{ y: [0, 16, 0], opacity: [0.2, 0.7, 0.2] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }} />
+
+            <div className="relative mx-auto flex min-h-screen w-full max-w-[1132px] flex-col px-6 py-5 sm:px-8 lg:px-2">
                 <motion.header
-                    initial={{ opacity: 0, y: -12 }}
+                    initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
+                    whileHover={{ y: -2 }}
                     transition={{ duration: 0.45, ease: 'easeOut' }}
-                    className="sticky top-3 z-30 flex items-center justify-between gap-3 rounded-[24px] border border-white/80 bg-white/80 px-3 py-3 shadow-lg shadow-slate-200/70 backdrop-blur-xl dark:border-white/10 dark:bg-white/8 dark:shadow-none sm:top-5 sm:px-5"
+                    className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-white px-5 py-3 shadow-sm transition-shadow hover:shadow-md dark:border-white/10 dark:bg-slate-900"
                 >
-                    <a href="#home" className="flex min-w-0 items-center gap-3 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-red-900">
-                        <img src={vatLogo} alt="VAT logo" className="h-11 w-11 shrink-0 rounded-2xl object-cover ring-1 ring-red-100" />
-                        <div className="min-w-0">
-                            <p className="truncate text-sm font-black tracking-[-0.02em] text-slate-950 dark:text-white sm:text-base">Hệ thống Đào tạo nội bộ VAT</p>
-                            <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">VAT LMS • Quản lý học tập tập trung</p>
-                        </div>
+                    <a href="#home" className="flex items-center gap-3 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-red-800">
+                        <img src={vatLogo} alt="VAT logo" className="h-10 w-10 shrink-0 rounded-full object-cover transition duration-500 hover:rotate-6 hover:scale-105" />
+                        <span className="text-lg font-black tracking-[-0.03em] text-slate-950 dark:text-white">VAT LMS</span>
                     </a>
 
-                    <Button variant="primary" size="sm" onClick={openLogin} className="min-h-11 px-4 sm:px-5">Đăng nhập</Button>
+                    <button
+                        type="button"
+                        onClick={openLogin}
+                        className="rounded-xl bg-gradient-to-b from-red-600 to-red-900 px-7 py-3 text-base font-extrabold text-white shadow-[0_14px_30px_-14px_rgba(127,29,29,0.8)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_-14px_rgba(127,29,29,0.9)] focus:outline-none focus-visible:ring-2 focus-visible:ring-red-800 focus-visible:ring-offset-2"
+                    >
+                        Đăng nhập
+                    </button>
                 </motion.header>
 
-                <section id="home" className="grid flex-1 items-center gap-8 py-10 lg:grid-cols-[1.02fr_0.98fr] lg:py-16 xl:gap-14">
-                    <div className="max-w-2xl">
-                        <motion.div custom={0} initial="hidden" animate="visible" variants={fadeUp} className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-red-900 shadow-sm dark:border-red-900/60 dark:bg-white/10 dark:text-red-200">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                            Hệ thống hoạt động bình thường
+                <section id="home" className="grid flex-1 items-center gap-12 pb-14 pt-14 lg:grid-cols-[0.96fr_1.04fr] lg:pb-20 lg:pt-20">
+                    <div className="max-w-[560px]">
+                        <motion.div custom={0} initial="hidden" animate="visible" variants={fadeUp} whileHover={{ scale: 1.03 }} className="inline-flex items-center gap-3 rounded-full border border-red-200 bg-red-50/60 px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-red-900 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200">
+                            <span className="relative flex h-2 w-2">
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-900 opacity-40 dark:bg-red-300" />
+                                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-900 dark:bg-red-300" />
+                            </span>
+                            Hệ thống quản lý học tập
                         </motion.div>
 
-                        <motion.h1 custom={1} initial="hidden" animate="visible" variants={fadeUp} className="mt-5 text-4xl font-black leading-[1.02] tracking-[-0.06em] text-slate-950 dark:text-white sm:text-6xl lg:text-7xl">
-                            Quản lý vận hành <span className="text-red-900 dark:text-red-300">& đào tạo tập trung</span>
+                        <motion.h1 custom={1} initial="hidden" animate="visible" variants={fadeUp} className="mt-3 text-[52px] font-black leading-[1.08] tracking-[-0.065em] text-[#111827] dark:text-white sm:text-[64px] lg:text-[70px]">
+                            Nâng tầm <span className="text-red-900 dark:text-red-300">chất</span><br />
+                            <span className="text-red-600 dark:text-red-300">lượng</span><br />
+                            giáo dục nội bộ
                         </motion.h1>
 
-                        <motion.p custom={2} initial="hidden" animate="visible" variants={fadeUp} className="mt-5 max-w-xl text-base leading-8 text-slate-600 dark:text-slate-300 sm:text-lg">
-                            Giao diện landing được tối ưu theo hành vi mắt nhìn: thông tin chính nằm bên trái, minh hoạ tin cậy bên phải, nút hành động lớn và form đăng nhập có dữ liệu mẫu để thao tác nhanh trên mọi thiết bị.
+                        <motion.p custom={2} initial="hidden" animate="visible" variants={fadeUp} className="mt-2 max-w-[560px] text-[17px] font-medium leading-[1.7] tracking-[-0.01em] text-slate-500 dark:text-slate-300">
+                            Nền tảng quản lý học tập toàn diện dành cho trung tâm VAT — quản lý lớp học, tài liệu, kiểm tra và theo dõi tiến độ học sinh trong một giao diện hiện đại.
                         </motion.p>
 
-                        <motion.div custom={3} initial="hidden" animate="visible" variants={fadeUp} className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <Button variant="primary" size="lg" onClick={openLogin} rightIcon={<ChevronRightIcon size={18} />} className="min-h-13 w-full px-6 text-base sm:w-auto">
-                                Truy cập hệ thống
-                            </Button>
-                            <Button variant="secondary" size="lg" onClick={() => setPopup('demo')} className="min-h-13 w-full px-6 text-base sm:w-auto">
-                                Xem tài khoản mẫu
-                            </Button>
-                        </motion.div>
-
-                        <motion.div custom={4} initial="hidden" animate="visible" variants={fadeUp} className="mt-8 grid grid-cols-3 gap-3">
-                            {trustItems.map((item) => (
-                                <div key={item.label} className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
-                                    <p className="mt-1 text-sm font-black text-slate-800 dark:text-white sm:text-base">{item.value}</p>
-                                </div>
-                            ))}
+                        <motion.div custom={3} initial="hidden" animate="visible" variants={fadeUp} className="mt-9">
+                            <button
+                                type="button"
+                                onClick={openLogin}
+                                className="group relative overflow-hidden rounded-xl bg-gradient-to-b from-red-500 to-red-900 px-8 py-4 text-base font-extrabold text-white shadow-[0_18px_34px_-16px_rgba(127,29,29,0.85)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_40px_-16px_rgba(127,29,29,0.95)] focus:outline-none focus-visible:ring-2 focus-visible:ring-red-800 focus-visible:ring-offset-2"
+                            >
+                                <span className="absolute inset-y-0 -left-10 w-8 rotate-12 bg-white/30 blur-sm transition duration-700 group-hover:left-[115%]" />
+                                Đăng nhập ngay →
+                            </button>
                         </motion.div>
                     </div>
 
-                    <motion.div custom={2} initial="hidden" animate="visible" variants={fadeUp} className="relative">
-                        <div className="absolute -inset-4 rounded-[34px] bg-gradient-to-br from-red-900/10 via-transparent to-amber-500/10 blur-xl" />
-                        <div className="relative overflow-hidden rounded-[30px] border border-red-200 bg-white p-3 shadow-2xl shadow-slate-300/70 dark:border-red-900/40 dark:bg-white/10 dark:shadow-none">
-                            <img src={vatClass} alt="Lớp học VAT" className="h-[250px] w-full rounded-[22px] object-cover sm:h-[360px] lg:h-[420px]" />
-                            <div className="grid gap-3 border-t border-red-100 p-4 sm:grid-cols-[1fr_auto] sm:items-center dark:border-white/10">
-                                <div className="flex items-center gap-3">
-                                    <img src={vatLogo} alt="VAT" className="h-10 w-10 rounded-xl object-cover ring-1 ring-red-100" />
-                                    <div>
-                                        <p className="font-black text-slate-900 dark:text-white">Lớp Hình Học 9 — Cơ sở 1</p>
-                                        <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Dữ liệu đào tạo được đồng bộ trong VAT LMS</p>
-                                    </div>
+                    <motion.div custom={2} initial="hidden" animate="visible" variants={fadeUp} whileHover={{ y: -6, rotate: -0.35 }} transition={{ type: 'spring', stiffness: 180, damping: 18 }} className="relative mx-auto w-full max-w-[468px] lg:mr-7">
+                        <motion.div className="absolute -inset-8 rounded-[36px] bg-red-900/[0.035] blur-3xl dark:bg-red-500/10" animate={{ scale: [1, 1.08, 1], opacity: [0.7, 1, 0.7] }} transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }} />
+
+                        <motion.div className="absolute -left-9 top-8 z-20 hidden rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_45px_-24px_rgba(15,23,42,0.45)] sm:block dark:border-white/10 dark:bg-slate-900" animate={{ y: [0, -7, 0] }} transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}>
+                            <p className="text-xs font-bold text-slate-400">Tài liệu</p>
+                            <p className="mt-1 text-sm font-black text-slate-600 dark:text-slate-200">Biên soạn độc quyền</p>
+                        </motion.div>
+
+                        <div className="relative overflow-visible rounded-[16px] border border-slate-200 bg-white pt-3 shadow-[0_28px_65px_-38px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-white/10">
+                            <div className="absolute inset-x-0 top-0 h-1 rounded-t-[16px] bg-red-900" />
+                            <div className="px-3">
+                                <img src={vatClass} alt="Lớp học VAT" className="h-[334px] w-full rounded-t-[13px] object-cover transition duration-700 hover:scale-[1.025] sm:h-[366px]" />
+                            </div>
+
+                            <div className="flex items-center gap-3 px-5 py-4">
+                                <img src={vatLogo} alt="VAT" className="h-9 w-9 rounded-full object-cover ring-1 ring-red-100" />
+                                <div>
+                                    <p className="text-base font-extrabold tracking-[-0.02em] text-slate-500 dark:text-slate-100">Lớp Hình Học 9 — Học kỳ 1</p>
+                                    <p className="mt-0.5 text-sm font-semibold text-slate-400 dark:text-slate-300">Trung tâm VAT</p>
                                 </div>
-                                <Button size="sm" variant="secondary" onClick={openLogin} className="min-h-10">Vào LMS</Button>
                             </div>
                         </div>
+
+                        <motion.div className="absolute -bottom-3 -right-6 z-20 hidden items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-[0_20px_45px_-24px_rgba(15,23,42,0.5)] sm:flex dark:border-white/10 dark:bg-slate-900" animate={{ y: [0, 7, 0] }} transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }}>
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-lg font-black text-emerald-500">✓</span>
+                            <div>
+                                <p className="text-sm font-black text-slate-500 dark:text-slate-100">Đang hoạt động</p>
+                                <p className="mt-0.5 text-xs font-semibold text-slate-400 dark:text-slate-300">Hệ thống sẵn sàng</p>
+                            </div>
+                        </motion.div>
                     </motion.div>
                 </section>
 
-                <footer className="mt-auto flex flex-col gap-3 border-t border-slate-200 py-6 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                <footer className="mt-auto flex flex-col gap-3 border-t border-slate-200 py-5 text-sm font-semibold text-slate-400 dark:border-white/10 dark:text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                     <span>© 2026 VAT LMS</span>
                     <span className="flex items-center gap-2"><BellIcon size={16} /> WCAG AA • Responsive • Real-time LMS</span>
                 </footer>
@@ -176,16 +194,6 @@ export function AuthLanding({ showLogin, message, loginForm, setShowLogin, setLo
                                 <form className="mt-6 grid gap-4" onSubmit={onLogin}>
                                     <Field label="Tên đăng nhập" value={loginForm.username} onChange={(event) => setLoginForm({ ...loginForm, username: event.target.value })} required placeholder="Ví dụ: xm2_student_01" />
                                     <Field label="Mật khẩu" type="password" value={loginForm.password} onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })} required placeholder="Ví dụ: student123" />
-                                    <div className="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
-                                        <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Điền nhanh</p>
-                                        <div className="grid gap-2 sm:grid-cols-3">
-                                            {demoAccounts.map((account) => (
-                                                <button key={account.username} type="button" onClick={() => fillAccount(account.username, account.password)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
-                                                    {account.role}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
                                     {message && (
                                         <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200" role="alert">
                                             {message}
