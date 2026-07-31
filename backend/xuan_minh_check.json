@@ -1,0 +1,203 @@
+{
+  "teachers": [
+    {
+      "id": 2,
+      "full_name": null,
+      "username": "xuanminh",
+      "role": "teacher"
+    },
+    {
+      "id": 6,
+      "full_name": null,
+      "username": "huyhoang",
+      "role": "teacher"
+    },
+    {
+      "id": 11,
+      "full_name": "Nguyễn Văn An",
+      "username": "nguyenvanan",
+      "role": "teacher"
+    },
+    {
+      "id": 12,
+      "full_name": "Trần Thị Bình",
+      "username": "tranthibinh",
+      "role": "teacher"
+    },
+    {
+      "id": 13,
+      "full_name": null,
+      "username": "hehe",
+      "role": "teacher"
+    },
+    {
+      "id": 1074,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 1",
+      "username": "teacher_ent_1",
+      "role": "teacher"
+    },
+    {
+      "id": 1075,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 2",
+      "username": "teacher_ent_2",
+      "role": "teacher"
+    },
+    {
+      "id": 1076,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 3",
+      "username": "teacher_ent_3",
+      "role": "teacher"
+    },
+    {
+      "id": 1077,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 4",
+      "username": "teacher_ent_4",
+      "role": "teacher"
+    },
+    {
+      "id": 1078,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 5",
+      "username": "teacher_ent_5",
+      "role": "teacher"
+    },
+    {
+      "id": 1079,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 6",
+      "username": "teacher_ent_6",
+      "role": "teacher"
+    },
+    {
+      "id": 1080,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 7",
+      "username": "teacher_ent_7",
+      "role": "teacher"
+    },
+    {
+      "id": 1081,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 8",
+      "username": "teacher_ent_8",
+      "role": "teacher"
+    },
+    {
+      "id": 1082,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 9",
+      "username": "teacher_ent_9",
+      "role": "teacher"
+    },
+    {
+      "id": 1083,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 10",
+      "username": "teacher_ent_10",
+      "role": "teacher"
+    },
+    {
+      "id": 1084,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 11",
+      "username": "teacher_ent_11",
+      "role": "teacher"
+    },
+    {
+      "id": 1085,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 12",
+      "username": "teacher_ent_12",
+      "role": "teacher"
+    },
+    {
+      "id": 1086,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 13",
+      "username": "teacher_ent_13",
+      "role": "teacher"
+    },
+    {
+      "id": 1087,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 14",
+      "username": "teacher_ent_14",
+      "role": "teacher"
+    },
+    {
+      "id": 1088,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 15",
+      "username": "teacher_ent_15",
+      "role": "teacher"
+    },
+    {
+      "id": 1089,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 16",
+      "username": "teacher_ent_16",
+      "role": "teacher"
+    },
+    {
+      "id": 1090,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 17",
+      "username": "teacher_ent_17",
+      "role": "teacher"
+    },
+    {
+      "id": 1091,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 18",
+      "username": "teacher_ent_18",
+      "role": "teacher"
+    },
+    {
+      "id": 1092,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 19",
+      "username": "teacher_ent_19",
+      "role": "teacher"
+    },
+    {
+      "id": 1093,
+      "full_name": "ThS. Nguyễn Văn Giáo Viên 20",
+      "username": "teacher_ent_20",
+      "role": "teacher"
+    },
+    {
+      "id": 1658,
+      "full_name": "Giảng viên Xuân Minh",
+      "username": "xuan_minh",
+      "role": "teacher"
+    }
+  ],
+  "minh": [
+    {
+      "teacher_id": 2,
+      "full_name": null,
+      "username": "xuanminh",
+      "classes": 1
+    },
+    {
+      "teacher_id": 1658,
+      "full_name": "Giảng viên Xuân Minh",
+      "username": "xuan_minh",
+      "classes": 3
+    }
+  ],
+  "xmClasses": [
+    {
+      "id": 157,
+      "code": "XM-AUTO-01",
+      "name": "Kỹ thuật Ô tô A1",
+      "teacher_id": 1658,
+      "full_name": "Giảng viên Xuân Minh",
+      "username": "xuan_minh",
+      "students": 32
+    },
+    {
+      "id": 158,
+      "code": "XM-AUTO-02",
+      "name": "Điện Ô tô B1",
+      "teacher_id": 1658,
+      "full_name": "Giảng viên Xuân Minh",
+      "username": "xuan_minh",
+      "students": 32
+    },
+    {
+      "id": 159,
+      "code": "XM-AUTO-03",
+      "name": "Chẩn đoán Hệ thống C1",
+      "teacher_id": 1658,
+      "full_name": "Giảng viên Xuân Minh",
+      "username": "xuan_minh",
+      "students": 32
+    }
+  ]
+}
