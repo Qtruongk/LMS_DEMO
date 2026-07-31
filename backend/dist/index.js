@@ -883,7 +883,7 @@ app.get('/api/feedbacks', asyncHandler(async (req, res) => {
         query += ' WHERE f.student_id = $1';
         params.push(user.id);
     }
-    else if (user.role !== 'admin') {
+    else if (user.role !== 'admin' && user.role !== 'teacher') {
         res.status(403).json({ message: 'Forbidden' });
         return;
     }
@@ -900,7 +900,7 @@ app.post('/api/feedbacks', asyncHandler(async (req, res) => {
     res.json({ message: 'Đã gửi phản hồi', feedback: rows[0] });
 }));
 app.put('/api/feedbacks/:id/respond', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin']))
+    if (!requireRole(req, res, ['admin', 'teacher']))
         return;
     const { admin_response } = req.body;
     const { id } = req.params;

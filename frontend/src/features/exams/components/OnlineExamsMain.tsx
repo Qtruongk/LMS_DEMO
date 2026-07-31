@@ -8,7 +8,6 @@ import { TeacherExamManager } from './TeacherExamManager';
 import { StudentExamTake } from './StudentExamTake';
 import { ExamResultsView } from './ExamResultsView';
 import { API_URL } from '../../../services/api';
-import { SAMPLE_EXAMS, SAMPLE_QUESTIONS, SAMPLE_RESULTS } from '../sampleExamData';
 
 type OnlineExamsMainProps = {
     user: User;
@@ -199,8 +198,8 @@ export function OnlineExamsMain({ user, classes }: OnlineExamsMainProps) {
         );
     }
 
-    const visibleStudentExams = exams.length ? exams : SAMPLE_EXAMS.slice(0, 8);
-    const visibleResults = studentResults.length ? studentResults : SAMPLE_RESULTS;
+    const visibleStudentExams = exams;
+    const visibleResults = studentResults;
 
     // TEACHER / ADMIN WORKSPACE
     if (canManage) {
@@ -296,25 +295,7 @@ export function OnlineExamsMain({ user, classes }: OnlineExamsMainProps) {
 
                                     <div className="border-t border-[var(--color-border)] pt-3 flex justify-end">
                                         <PrimaryButton
-                                            onClick={() => {
-                                                if (exam.id >= 9000) {
-                                                    setTakingExam({
-                                                        exam,
-                                                        questions: SAMPLE_QUESTIONS[exam.id] || [],
-                                                        submission: {
-                                                            id: Date.now(),
-                                                            exam_id: exam.id,
-                                                            student_id: user.id,
-                                                            attempt_number: 1,
-                                                            start_time: new Date().toISOString(),
-                                                            status: 'in_progress',
-                                                            answers: {},
-                                                        },
-                                                    });
-                                                    return;
-                                                }
-                                                handleStartExamAttempt(exam);
-                                            }}
+                                            onClick={() => handleStartExamAttempt(exam)}
                                             className="h-10 px-6 text-xs font-bold bg-blue-600 hover:bg-blue-700 inline-flex items-center gap-1.5"
                                         >
                                             <PlayIcon size={14} /> Bắt Đầu Làm Bài

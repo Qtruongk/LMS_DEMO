@@ -14,7 +14,6 @@ import {
 import type { OnlineExam, QuestionItem, ExamSubmission } from '../types';
 import { KaTeXRenderer } from './KaTeXRenderer';
 import type { ClassItem } from '../../../types';
-import { SAMPLE_EXAMS } from '../sampleExamData';
 
 type TeacherExamManagerProps = {
     exams: OnlineExam[];
@@ -46,19 +45,11 @@ export function TeacherExamManager({
     const [editingExam, setEditingExam] = useState<{ exam: OnlineExam; questions: QuestionItem[] } | null>(null);
     const [gradingSubmission, setGradingSubmission] = useState<ExamSubmission | null>(null);
 
-    const displayedExams = exams.length ? exams : SAMPLE_EXAMS;
+    const displayedExams = exams;
 
     // Open Exam Analytics Dashboard
     const handleOpenAnalytics = async (exam: OnlineExam) => {
         setSelectedExam(exam);
-        if (exam.id >= 9000) {
-            setSubmissions([]);
-            const { SAMPLE_QUESTIONS, SAMPLE_RESULTS } = await import('../sampleExamData');
-            setExamQuestions(SAMPLE_QUESTIONS[exam.id] || []);
-            setSubmissions(SAMPLE_RESULTS.filter((item) => item.exam_id === exam.id));
-            setViewMode('analytics');
-            return;
-        }
         const subs = await onFetchSubmissions(exam.id);
         setSubmissions(subs);
         const details = await onFetchExamDetails(exam.id);
@@ -69,13 +60,6 @@ export function TeacherExamManager({
     // Open Grading Panel
     const handleOpenGrading = async (exam: OnlineExam) => {
         setSelectedExam(exam);
-        if (exam.id >= 9000) {
-            const { SAMPLE_QUESTIONS, SAMPLE_RESULTS } = await import('../sampleExamData');
-            setSubmissions(SAMPLE_RESULTS.filter((item) => item.exam_id === exam.id));
-            setExamQuestions(SAMPLE_QUESTIONS[exam.id] || []);
-            setViewMode('grading');
-            return;
-        }
         const subs = await onFetchSubmissions(exam.id);
         setSubmissions(subs);
         const details = await onFetchExamDetails(exam.id);
@@ -195,10 +179,6 @@ export function TeacherExamManager({
                                             <button
                                                 type="button"
                                                 onClick={async () => {
-                                                    if (exam.id >= 9000) {
-                                                        setEditingExam({ exam, questions: [] });
-                                                        return;
-                                                    }
                                                     const details = await onFetchExamDetails(exam.id);
                                                     setEditingExam(details);
                                                 }}
@@ -209,10 +189,6 @@ export function TeacherExamManager({
                                             <button
                                                 type="button"
                                                 onClick={async () => {
-                                                    if (exam.id >= 9000) {
-                                                        window.alert('Đây là đề mẫu demo, không xóa khỏi hệ thống thật.');
-                                                        return;
-                                                    }
                                                     if (window.confirm('Bạn có chắc muốn xóa đề thi này không?')) {
                                                         await onDeleteExam(exam.id);
                                                     }

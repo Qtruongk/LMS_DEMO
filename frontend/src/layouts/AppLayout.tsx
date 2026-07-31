@@ -8,7 +8,6 @@ import { iconMap, MenuIcon, SunIcon, MoonIcon, ChevronRightIcon, LogoutIcon, Che
 
 const menuBadges: Record<string, { text: string | number; color: string }> = {
     grading: { text: '12+', color: 'bg-amber-500 text-white' },
-    attendance: { text: '!', color: 'bg-emerald-500 text-white' },
 };
 
 type AppLayoutProps = {
@@ -151,8 +150,6 @@ function NavButton({ item, active, collapsed, onClick }: { item: string; active:
     const IconComponent = iconMap[item];
     const badge = menuBadges[item];
 
-    const isNotificationItem = item === 'notifications';
-
     return (
         <button
             onClick={onClick}
@@ -169,15 +166,12 @@ function NavButton({ item, active, collapsed, onClick }: { item: string; active:
             )}
 
             <span
-                className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl transition-all duration-300 ${isNotificationItem
-                    ? 'shadow-lg ring-2 group-hover:scale-105'
-                    : active
-                        ? 'bg-white text-[var(--color-primary)] shadow-sm ring-1 ring-[var(--color-primary-border)] dark:bg-[var(--color-primary)] dark:text-white dark:ring-0'
-                        : 'text-[var(--color-text-muted)] group-hover:bg-white group-hover:text-[var(--color-text)] group-hover:shadow-xs group-hover:ring-1 group-hover:ring-[var(--color-border)]'
+                className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl transition-all duration-300 ${active
+                    ? 'bg-white text-[var(--color-primary)] shadow-sm ring-1 ring-[var(--color-primary-border)] dark:bg-[var(--color-primary)] dark:text-white dark:ring-0'
+                    : 'text-[var(--color-text-muted)] group-hover:bg-white group-hover:text-[var(--color-text)] group-hover:shadow-xs group-hover:ring-1 group-hover:ring-[var(--color-border)]'
                     }`}
-                style={isNotificationItem ? { backgroundColor: '#ef4444', color: '#ffffff', boxShadow: '0 10px 22px rgba(239, 68, 68, 0.38)', border: '2px solid rgba(248, 113, 113, 0.45)' } : undefined}
             >
-                {IconComponent ? <IconComponent size={18} strokeWidth={2.8} style={isNotificationItem ? { color: '#ffffff', stroke: '#ffffff' } : undefined} /> : <span className="text-xs font-bold">{item.charAt(0).toUpperCase()}</span>}
+                {IconComponent ? <IconComponent size={18} strokeWidth={2.8} /> : <span className="text-xs font-bold">{item.charAt(0).toUpperCase()}</span>}
             </span>
 
             {!collapsed && (
@@ -186,7 +180,7 @@ function NavButton({ item, active, collapsed, onClick }: { item: string; active:
 
             {/* Badges */}
             {badge && !collapsed && (
-                <span className={`ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-black ${badge.color} shadow-sm ring-2 ring-[var(--color-bg-elevated)] group-hover:ring-[var(--color-bg-muted)] ${active ? 'group-hover:ring-[var(--color-primary-soft)]' : ''}`} style={isNotificationItem ? { backgroundColor: '#ef4444', color: '#ffffff', opacity: 1 } : undefined}>
+                <span className={`ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-black ${badge.color} shadow-sm ring-2 ring-[var(--color-bg-elevated)] group-hover:ring-[var(--color-bg-muted)] ${active ? 'group-hover:ring-[var(--color-primary-soft)]' : ''}`}>
                     {badge.text}
                 </span>
             )}

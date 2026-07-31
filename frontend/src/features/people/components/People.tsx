@@ -57,28 +57,20 @@ export function Teachers(props: PeopleProps) {
     );
 }
 
-const demoTeacherStudents: User[] = [
-    { id: 9001, full_name: 'Nguyễn Văn An', username: 'an.nguyen', phone: '0912 345 678', student_code: 'VAT-S001', role: 'student', status: 'active' },
-    { id: 9002, full_name: 'Trần Thị Bình', username: 'binh.tran', phone: '0987 654 321', student_code: 'VAT-S002', role: 'student', status: 'active' },
-    { id: 9003, full_name: 'Lê Minh Khang', username: 'khang.le', phone: '0901 222 333', student_code: 'VAT-S003', role: 'student', status: 'inactive' },
-];
-
 function TeacherStudentsExperience({ students }: { students: User[] }) {
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
     const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
     const [showCarePopup, setShowCarePopup] = useState(false);
     const [showDetailPopup, setShowDetailPopup] = useState(false);
-    const displayStudents = students.length ? students : demoTeacherStudents;
-
-    const enrichedStudents = useMemo(() => displayStudents.map((student, index) => ({
+    const enrichedStudents = useMemo(() => students.map((student, index) => ({
         ...student,
         attendance: [96, 88, 72, 91, 84][index % 5],
         progress: [82, 76, 61, 93, 70][index % 5],
         lastSeen: ['Hôm nay, 09:30', 'Hôm qua, 20:15', '2 ngày trước', 'Hôm nay, 14:10', 'Tuần trước'][index % 5],
         nextAction: ['Gửi nhận xét buổi học', 'Nhắc hoàn thiện bài tập', 'Hẹn trao đổi phụ huynh', 'Giao bài nâng cao', 'Kiểm tra tiến độ'][index % 5],
         risk: [false, false, true, false, true][index % 5],
-    })), [displayStudents]);
+    })), [students]);
 
     const filteredStudents = useMemo(() => enrichedStudents.filter((student) => {
         const keyword = query.trim().toLowerCase();

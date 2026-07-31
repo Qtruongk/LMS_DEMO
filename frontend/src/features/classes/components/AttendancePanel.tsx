@@ -27,14 +27,6 @@ type TeacherAttendanceMode = 'take' | 'summary' | 'edit';
 
 const today = new Date().toISOString().split('T')[0];
 
-const demoRecords: StudentAttendanceRecord[] = [
-    { student_id: 8101, full_name: 'Nguyễn Văn An', username: 'an.nguyen', student_code: 'VAT-S001', status: 'present', note: 'Có mặt đúng giờ' },
-    { student_id: 8102, full_name: 'Trần Thị Bình', username: 'binh.tran', student_code: 'VAT-S002', status: 'present', note: 'Có mặt' },
-    { student_id: 8103, full_name: 'Lê Minh Khang', username: 'khang.le', student_code: 'VAT-S003', status: 'absent', note: 'Chưa điểm danh' },
-    { student_id: 8104, full_name: 'Phạm Gia Hân', username: 'han.pham', student_code: 'VAT-S004', status: 'late', note: 'Đến muộn 10 phút' },
-    { student_id: 8105, full_name: 'Đặng Nhật Nam', username: 'nam.dang', student_code: 'VAT-S005', status: 'excused', note: 'Nghỉ có phép từ phụ huynh' },
-];
-
 const statusOptions: { id: AttendanceStatus; label: string; activeClass: string; softClass: string }[] = [
     { id: 'present', label: 'Có mặt', activeClass: 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20', softClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     { id: 'late', label: 'Đi muộn', activeClass: 'bg-amber-600 text-white shadow-lg shadow-amber-600/20', softClass: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -69,7 +61,7 @@ export function AttendancePanel({ user, classes, selectedClassId, setSelectedCla
         try {
             const response = await fetch(`${API_URL}/api/attendance/class/${classId}?date=${dateStr}`, { headers });
             const data = await response.json();
-            const loadedRecords = (data.records?.length ? data.records : demoRecords) as StudentAttendanceRecord[];
+            const loadedRecords = (data.records ?? []) as StudentAttendanceRecord[];
             setInitialRecords(JSON.parse(JSON.stringify(loadedRecords)));
             setRecords(loadedRecords);
             const alreadySaved = Boolean(data.has_saved || data.saved_count > 0);
@@ -77,8 +69,8 @@ export function AttendancePanel({ user, classes, selectedClassId, setSelectedCla
             setMode(alreadySaved ? 'summary' : 'take');
         } catch (error) {
             console.error('Lỗi tải danh sách điểm danh:', error);
-            setInitialRecords(JSON.parse(JSON.stringify(demoRecords)));
-            setRecords(demoRecords);
+            setInitialRecords([]);
+            setRecords([]);
             setMode(savedClassIds.includes(classId) ? 'summary' : 'take');
         } finally {
             setLoading(false);
@@ -158,7 +150,7 @@ export function AttendancePanel({ user, classes, selectedClassId, setSelectedCla
             setSavedClassIds((previous) => previous.includes(effectiveClassId) ? previous : [...previous, effectiveClassId]);
             setMode('summary');
             setShowSavePopup(true);
-            setAlertMsg('Đã lưu điểm danh ở giao diện demo.');
+            setAlertMsg('Đã lưu điểm danh vào cơ sở dữ liệu.');
         } finally {
             setSaving(false);
         }
@@ -168,8 +160,8 @@ export function AttendancePanel({ user, classes, selectedClassId, setSelectedCla
         return <StudentAttendanceView classes={classes} />;
     }
 
-    const className = selectedClass?.name || 'Lớp demo VAT';
-    const classCode = selectedClass?.code || 'VAT-ATT01';
+    const className = selectedClass?.name || 'Chưa có lớp trong cơ sở dữ liệu';
+    const classCode = selectedClass?.code || 'DB-EMPTY';
 
     return (
         <div className="grid gap-4 pb-8">
@@ -201,7 +193,7 @@ export function AttendancePanel({ user, classes, selectedClassId, setSelectedCla
                         >
                             {classes.length ? classes.map((item) => (
                                 <option key={item.id} value={item.id}>{item.name} ({item.code})</option>
-                            )) : <option value="">Lớp demo VAT-ATT01</option>}
+                            )) : <option value="">Chưa có lớp trong cơ sở dữ liệu</option>}
                         </select>
                         <input
                             type="date"

@@ -35,36 +35,6 @@ const addDays = (days: number, hour = 19, minute = 30) => {
     return date;
 };
 
-const demoSessions: SessionItem[] = [
-    {
-        id: 9101,
-        title: 'Buổi 1: Khởi động lộ trình học cá nhân',
-        description: 'Giới thiệu mục tiêu lớp học, kiểm tra đầu vào nhanh, thống nhất quy tắc tương tác và giao nhiệm vụ chuẩn bị cho buổi tiếp theo.',
-        start_time: addDays(-5).toISOString(),
-        end_time: addDays(-5, 21, 0).toISOString(),
-        status: 'completed',
-        teacher_notes: '3 học sinh cần hỗ trợ thêm phần nền tảng.',
-    },
-    {
-        id: 9102,
-        title: 'Buổi 2: Luyện tập trọng tâm và sửa lỗi thường gặp',
-        description: 'Ôn lại phần kiến thức cốt lõi, chia nhóm luyện tập theo mức độ, giáo viên ghi chú các lỗi lặp lại để phản hồi cá nhân.',
-        start_time: addDays(1).toISOString(),
-        end_time: addDays(1, 21, 0).toISOString(),
-        status: 'not_started',
-        teacher_notes: 'Chuẩn bị phiếu bài tập mức cơ bản và nâng cao.',
-    },
-    {
-        id: 9103,
-        title: 'Buổi 3: Mini test và phản hồi tiến độ',
-        description: 'Làm bài kiểm tra 20 phút, chấm nhanh theo nhóm năng lực, gửi nhận xét cho học sinh/phụ huynh ngay sau buổi học.',
-        start_time: addDays(3).toISOString(),
-        end_time: addDays(3, 21, 0).toISOString(),
-        status: 'not_started',
-        teacher_notes: 'Cần chuẩn bị rubric nhận xét ngắn gọn.',
-    },
-];
-
 export function ClassTimelineView({ user, classes, selectedClassId, setSelectedClassId }: ClassTimelineViewProps) {
     const canManage = user.role === 'admin' || user.role === 'teacher';
     const effectiveClassId = selectedClassId ?? (classes[0]?.id || null);
@@ -79,7 +49,7 @@ export function ClassTimelineView({ user, classes, selectedClassId, setSelectedC
     const [alertMsg, setAlertMsg] = useState('');
     const [filterType, setFilterType] = useState<TimelineFilter>('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const [pinnedIds, setPinnedIds] = useState<number[]>([9102]);
+    const [pinnedIds, setPinnedIds] = useState<number[]>([]);
     const [form, setForm] = useState<SessionForm>({
         title: 'Buổi học mới: Luyện tập trọng tâm theo nhóm năng lực',
         description: 'Mục tiêu: ôn phần kiến thức cốt lõi, giải 5 bài mẫu, ghi nhận học sinh cần hỗ trợ và gửi nhắc học tập sau buổi học.',
@@ -113,9 +83,8 @@ export function ClassTimelineView({ user, classes, selectedClassId, setSelectedC
     }, [effectiveClassId, selectedClassId, classes, loadSessions, setSelectedClassId]);
 
     const selectedClass = classes.find((item) => item.id === effectiveClassId);
-    const displaySessions = sessions.length ? sessions : demoSessions;
 
-    const enrichedSessions = useMemo(() => displaySessions.map((session, index) => {
+    const enrichedSessions = useMemo(() => sessions.map((session, index) => {
         const endDate = new Date(session.end_time || session.start_time);
         const isDone = session.status === 'completed' || endDate < new Date();
         const isPinned = pinnedIds.includes(session.id);
@@ -127,7 +96,7 @@ export function ClassTimelineView({ user, classes, selectedClassId, setSelectedC
             priority: isPinned ? 'Ưu tiên' : index === 0 ? 'Theo dõi' : 'Bình thường',
             completion: isDone ? 100 : [45, 60, 72, 85][index % 4],
         };
-    }), [displaySessions, pinnedIds]);
+    }), [sessions, pinnedIds]);
 
     const filteredSessions = useMemo(() => enrichedSessions.filter((session) => {
         const keyword = searchQuery.trim().toLowerCase();
@@ -260,7 +229,7 @@ export function ClassTimelineView({ user, classes, selectedClassId, setSelectedC
                         >
                             {classes.length ? classes.map((item) => (
                                 <option key={item.id} value={item.id}>{item.name} ({item.code})</option>
-                            )) : <option value="">Lớp demo - VAT-TL01</option>}
+                            )) : <option value="">Chưa có lớp trong cơ sở dữ liệu</option>}
                         </select>
                         {canManage && (
                             <PrimaryButton type="button" onClick={() => handleOpenModal()} className="min-h-12 px-5 text-sm font-black">

@@ -1,4 +1,4 @@
-import { memo, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Panel, Badge, Button, PrimaryButton, Skeleton, Field } from '../../../components/shared/ui';
 import {
@@ -13,9 +13,62 @@ import {
     XIcon,
     TrendIcon,
 } from '../../../components/shared/icons';
-import type { ClassItem, User, WorkspaceSummary } from '../../../types';
+import type { ClassItem, SessionItem, User, WorkspaceSummary } from '../../../types';
 import { ClassSideDrawer } from '../../../components/shared/ClassSideDrawer';
 import { StudentDashboard } from './StudentDashboard';
+import { API_URL } from '../../../services/api';
+
+type AttendanceStatus = 'present' | 'late' | 'excused' | 'absent';
+
+type DashboardAttendanceRecord = {
+    student_id: number;
+    full_name: string;
+    username: string;
+    student_code?: string;
+    status: AttendanceStatus;
+    note: string;
+};
+
+type DashboardScheduleItem = {
+    id: number;
+    classId: number;
+    code: string;
+    name: string;
+    time: string;
+    room: string;
+    date: string;
+    startTime: string;
+    status: 'ongoing' | 'completed' | 'upcoming';
+    statusText: string;
+    hasSavedAttendance: boolean;
+    savedCount: number;
+    studentCount: number;
+    records: DashboardAttendanceRecord[];
+};
+
+const todayInput = () => new Date().toISOString().split('T')[0];
+
+function formatTimeRange(start?: string, end?: string) {
+    const startDate = start ? new Date(start) : null;
+    const endDate = end ? new Date(end) : null;
+    const format = (date: Date | null) => date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+    return `${format(startDate)} - ${format(endDate)}`;
+}
+
+function inferSessionStatus(start?: string, end?: string): DashboardScheduleItem['status'] {
+    const current = Date.now();
+    const startTime = start ? new Date(start).getTime() : current;
+    const endTime = end ? new Date(end).getTime() : startTime;
+    if (current >= startTime && current <= endTime) return 'ongoing';
+    if (current > endTime) return 'completed';
+    return 'upcoming';
+}
+
+function getSessionStatusText(status: DashboardScheduleItem['status']) {
+    if (status === 'ongoing') return 'Đang diễn ra';
+    if (status === 'completed') return 'Đã kết thúc';
+    return 'Sắp diễn ra';
+}
 
 type DashboardProps = {
     user: User;
@@ -23,18 +76,6 @@ type DashboardProps = {
     classes: ClassItem[];
     onNavigate?: (module: string) => void;
 };
-
-// Dummy interactive data for modals
-const sampleStudents = [
-    { id: 1, name: 'Nguyễn Văn An', code: 'VAT-9021', status: 'present', note: '' },
-    { id: 2, name: 'Trần Thị Bích', code: 'VAT-9022', status: 'present', note: '' },
-    { id: 3, name: 'Lê Hoàng Nam', code: 'VAT-9023', status: 'late', note: 'Đi muộn 10 phút' },
-    { id: 4, name: 'Phạm Quốc Cường', code: 'VAT-9024', status: 'present', note: '' },
-    { id: 5, name: 'Đỗ Minh Tuấn', code: 'VAT-9025', status: 'excused', note: 'Có đơn xin nghỉ ốm' },
-    { id: 6, name: 'Vũ Thị Hoa', code: 'VAT-9026', status: 'present', note: '' },
-    { id: 7, name: 'Hoàng Anh Đức', code: 'VAT-9027', status: 'present', note: '' },
-    { id: 8, name: 'Bùi Ngọc Lan', code: 'VAT-9028', status: 'present', note: '' },
-];
 
 export const Dashboard = memo(function Dashboard({ user, summary, classes, onNavigate }: DashboardProps) {
     const isAdmin = user.role === 'admin';
@@ -49,8 +90,10 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     // Attendance State
-    const [attendanceList, setAttendanceList] = useState(sampleStudents);
-    const [attendanceNote, setAttendanceNote] = useState('Bài học hôm nay: Đường tròn ngoại tiếp tam giác. Cả lớp tiếp thu tốt, Lê Hoàng Nam đi muộn 10 phút.');
+    const [attendanceList, setAttendanceList] = useState<DashboardAttendanceRecord[]>([]);
+    const [attendanceNote, setAttendanceNote] = useState('Dữ liệu điểm danh được đồng bộ từ cơ sở dữ liệu.');
+    const [dashboardSchedule, setDashboardSchedule] = useState<DashboardScheduleItem[]>([]);
+    const [selectedSchedule, setSelectedSchedule] = useState<DashboardScheduleItem | null>(null);
 
     // Announcement State
     const [announcementClass, setAnnouncementClass] = useState('Hình Học 9 — CS1');
@@ -62,9 +105,85 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
     const [gradingScore, setGradingScore] = useState('9.5');
     const [gradingFeedback, setGradingFeedback] = useState('Bài làm xuất sắc! Lập luận chứng minh đường tròn ngoại tiếp rất rõ ràng. Cần chú ý rút gọn biểu thức ở câu 4b.');
 
+    const headers = useMemo(() => ({ 'Content-Type': 'application/json', 'x-user-id': String(user.id) }), [user.id]);
+
     const triggerToast = (msg: string) => {
         setToastMessage(msg);
         setTimeout(() => setToastMessage(null), 3000);
+    };
+
+    const loadTeacherTodaySchedule = useCallback(async () => {
+        if (user.role === 'student' || !classes.length) return;
+        const today = todayInput();
+        try {
+            const items = await Promise.all(classes.map(async (classItem) => {
+                const sessionResponse = await fetch(`${API_URL}/api/sessions/class/${classItem.id}`, { headers });
+                const sessionData = sessionResponse.ok ? await sessionResponse.json() : { sessions: [] };
+                const sessions = ((sessionData.sessions ?? []) as SessionItem[]).filter((session) => new Date(session.start_time).toISOString().split('T')[0] === today);
+
+                const attendanceResponse = await fetch(`${API_URL}/api/attendance/class/${classItem.id}?date=${today}`, { headers });
+                const attendanceData = attendanceResponse.ok ? await attendanceResponse.json() : { records: [], has_saved: false, saved_count: 0 };
+                const records = (attendanceData.records ?? []) as DashboardAttendanceRecord[];
+
+                return sessions.map((session) => {
+                    const status = inferSessionStatus(session.start_time, session.end_time);
+                    return {
+                        id: session.id,
+                        classId: classItem.id,
+                        code: classItem.code,
+                        name: classItem.name,
+                        time: formatTimeRange(session.start_time, session.end_time),
+                        room: classItem.location || 'Chưa cập nhật phòng',
+                        date: today,
+                        startTime: session.start_time,
+                        status,
+                        statusText: getSessionStatusText(status),
+                        hasSavedAttendance: Boolean(attendanceData.has_saved),
+                        savedCount: Number(attendanceData.saved_count || 0),
+                        studentCount: records.length || Number(classItem.student_count || 0),
+                        records,
+                    } satisfies DashboardScheduleItem;
+                });
+            }));
+            const flattened = items.flat().sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            setDashboardSchedule(flattened);
+            setSelectedSchedule((current) => flattened.find((item) => item.id === current?.id) ?? flattened[0] ?? null);
+        } catch (error) {
+            console.error('Lỗi tải timeline giảng dạy hôm nay:', error);
+            setDashboardSchedule([]);
+        }
+    }, [classes, headers, user.role]);
+
+    useEffect(() => {
+        loadTeacherTodaySchedule();
+    }, [loadTeacherTodaySchedule]);
+
+    useEffect(() => {
+        if (!selectedSchedule) return;
+        setAttendanceList(selectedSchedule.records);
+        setAttendanceNote(selectedSchedule.hasSavedAttendance ? 'Điểm danh đã được lưu trong cơ sở dữ liệu.' : `Chốt điểm danh cho ${selectedSchedule.name} ngày ${selectedSchedule.date}.`);
+    }, [selectedSchedule]);
+
+    const handleOpenAttendance = (schedule?: DashboardScheduleItem) => {
+        const target = schedule ?? dashboardSchedule.find((item) => !item.hasSavedAttendance) ?? dashboardSchedule[0] ?? null;
+        if (target) setSelectedSchedule(target);
+        setShowAttendanceModal(true);
+    };
+
+    const handleSaveAttendance = async () => {
+        if (!selectedSchedule) return;
+        await fetch(`${API_URL}/api/attendance/save`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                class_id: selectedSchedule.classId,
+                date: selectedSchedule.date,
+                records: attendanceList.map((item) => ({ student_id: item.student_id, status: item.status, note: item.note })),
+            }),
+        });
+        setShowAttendanceModal(false);
+        triggerToast(`Đã chốt điểm danh lớp ${selectedSchedule.name} (${attendanceList.length}/${selectedSchedule.studentCount || attendanceList.length})`);
+        loadTeacherTodaySchedule();
     };
 
     if (isStudent) {
@@ -87,11 +206,8 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
 
     const activeClasses = classes.filter((c) => c.status !== 'completed' && c.status !== 'canceled');
 
-    const todaySchedule = [
-        { id: 101, code: 'HH9-CS1', name: 'Hình Học 9 — Cơ sở 1', time: '08:00 - 09:30', room: 'Phòng A204', status: 'ongoing', statusText: 'Đang diễn ra' },
-        { id: 102, code: 'DS10-CS1', name: 'Đại Số 10 — Cơ sở 1', time: '10:00 - 11:30', room: 'Phòng A205', status: 'upcoming', statusText: 'Sắp diễn ra' },
-        { id: 103, code: 'TA-CB', name: 'Tiếng Anh Giao Tiếp', time: '14:00 - 15:30', room: 'Phòng B102', status: 'upcoming', statusText: 'Chiều nay' },
-    ];
+    const todaySchedule = dashboardSchedule;
+    const pendingAttendance = todaySchedule.find((item) => !item.hasSavedAttendance && item.status === 'completed') ?? todaySchedule.find((item) => !item.hasSavedAttendance) ?? null;
 
     return (
         <div className="grid gap-6">
@@ -133,7 +249,7 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                         <div className="grid gap-3 sm:grid-cols-3">
                             <button
                                 type="button"
-                                onClick={() => setShowAttendanceModal(true)}
+                                onClick={() => handleOpenAttendance()}
                                 className="group min-h-24 rounded-3xl border border-[var(--color-primary-border)] bg-[var(--color-primary)] p-4 text-left text-white shadow-[var(--shadow-primary)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] active:translate-y-0"
                             >
                                 <span className="mb-3 grid h-9 w-9 place-items-center rounded-2xl bg-white/18"><CheckIcon size={17} /></span>
@@ -229,7 +345,7 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                                 <button
                                     key={s.id}
                                     type="button"
-                                    onClick={() => setShowAttendanceModal(true)}
+                                    onClick={() => handleOpenAttendance(s)}
                                     className="group relative grid gap-3 rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--color-primary-border)] hover:bg-[var(--color-card)] hover:shadow-md sm:grid-cols-[auto_1fr_auto] sm:items-center sm:p-4"
                                 >
                                     <span className={`relative z-10 grid h-10 w-10 place-items-center rounded-2xl text-xs font-black ${index === 0 ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-primary-soft)] text-[var(--color-primary)]'}`}>
@@ -243,7 +359,7 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                                         </span>
                                     </span>
                                     <span className="flex items-center justify-between gap-2 border-t border-[var(--color-border)] pt-3 sm:border-t-0 sm:pt-0">
-                                        <Badge tone={s.status === 'ongoing' ? 'success' : 'info'} size="md">{s.statusText}</Badge>
+                                        <Badge tone={s.hasSavedAttendance ? 'success' : s.status === 'completed' ? 'warning' : 'info'} size="md">{s.hasSavedAttendance ? 'Đã điểm danh' : s.statusText}</Badge>
                                         <span className="rounded-xl bg-[var(--color-primary-soft)] px-3 py-2 text-xs font-black text-[var(--color-primary)] transition group-hover:bg-[var(--color-primary)] group-hover:text-white">Mở</span>
                                     </span>
                                 </button>
@@ -299,10 +415,10 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200"><CheckIcon size={20} /></span>
                                 <div>
                                     <h3 className="text-base font-black text-amber-950 dark:text-amber-100">Cần hoàn tất điểm danh</h3>
-                                    <p className="mt-1 text-xs leading-5 text-amber-800/80 dark:text-amber-100/75">Ca dạy <b>Hình Học 9 — Cơ sở 1</b> vừa kết thúc. Chốt sĩ số giúp báo cáo chính xác hơn.</p>
+                                    <p className="mt-1 text-xs leading-5 text-amber-800/80 dark:text-amber-100/75">{pendingAttendance ? <>Ca dạy <b>{pendingAttendance.name}</b> cần chốt sĩ số từ cơ sở dữ liệu.</> : 'Các ca dạy hôm nay đã được đồng bộ điểm danh.'}</p>
                                 </div>
                             </div>
-                            <PrimaryButton size="sm" onClick={() => setShowAttendanceModal(true)} className="w-full">Mở bảng điểm danh</PrimaryButton>
+                            <PrimaryButton size="sm" onClick={() => handleOpenAttendance(pendingAttendance ?? undefined)} className="w-full" disabled={!todaySchedule.length}>Mở bảng điểm danh</PrimaryButton>
                         </div>
                     </div>
 
@@ -356,8 +472,8 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                                     <CheckIcon size={18} />
                                 </span>
                                 <div>
-                                    <h3 className="text-base font-extrabold text-[var(--color-text)]">Điểm danh nhanh: Hình Học 9 — Cơ sở 1</h3>
-                                    <p className="text-xs text-[var(--color-text-secondary)]">Ca dạy 08:00 - 09:30 | Sĩ số: 8/8 học viên</p>
+                                    <h3 className="text-base font-extrabold text-[var(--color-text)]">Điểm danh nhanh: {selectedSchedule?.name || 'Chưa chọn ca dạy'}</h3>
+                                    <p className="text-xs text-[var(--color-text-secondary)]">Ca dạy {selectedSchedule?.time || '--:--'} | Sĩ số: {attendanceList.length}/{selectedSchedule?.studentCount || attendanceList.length} học viên</p>
                                 </div>
                             </div>
                             <button
@@ -371,10 +487,10 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                         {/* Roster Table */}
                         <div className="max-h-[50vh] overflow-y-auto p-6 space-y-3">
                             {attendanceList.map((st) => (
-                                <div key={st.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+                                <div key={st.student_id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
                                     <div>
-                                        <b className="text-sm text-[var(--color-text)]">{st.name}</b>
-                                        <span className="ml-2 text-xs font-mono text-[var(--color-text-muted)]">({st.code})</span>
+                                        <b className="text-sm text-[var(--color-text)]">{st.full_name || st.username}</b>
+                                        <span className="ml-2 text-xs font-mono text-[var(--color-text-muted)]">({st.student_code || st.username})</span>
                                         {st.note && <p className="text-xs text-amber-600 font-medium mt-0.5">⚠️ {st.note}</p>}
                                     </div>
                                     <div className="flex items-center gap-1.5">
@@ -391,7 +507,7 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                                                     key={mode}
                                                     type="button"
                                                     onClick={() => {
-                                                        setAttendanceList(attendanceList.map((item) => (item.id === st.id ? { ...item, status: mode } : item)));
+                                                        setAttendanceList(attendanceList.map((item) => (item.student_id === st.student_id ? { ...item, status: mode } : item)));
                                                     }}
                                                     className={`rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${colors[mode]}`}
                                                 >
@@ -417,13 +533,8 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                         {/* Footer Actions */}
                         <div className="flex items-center justify-end gap-3 border-t border-[var(--color-border)] p-4 bg-[var(--color-bg-soft)]">
                             <Button onClick={() => setShowAttendanceModal(false)}>Hủy</Button>
-                            <PrimaryButton
-                                onClick={() => {
-                                    setShowAttendanceModal(false);
-                                    triggerToast('Đã chốt điểm danh lớp Hình Học 9 — CS1 (8/8)');
-                                }}
-                            >
-                                Lưu điểm danh (8/8)
+                            <PrimaryButton onClick={handleSaveAttendance} disabled={!selectedSchedule || !attendanceList.length}>
+                                Lưu điểm danh ({attendanceList.length}/{selectedSchedule?.studentCount || attendanceList.length})
                             </PrimaryButton>
                         </div>
                     </motion.div>

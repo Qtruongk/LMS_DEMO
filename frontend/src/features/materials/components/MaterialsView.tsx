@@ -22,46 +22,6 @@ type UploadForm = {
     externalLink: string;
 };
 
-const demoMaterials: Material[] = [
-    {
-        id: 9201,
-        class_id: 0,
-        class_name: 'Kỹ thuật Ô tô A1',
-        title: 'Giáo trình buổi 1: Tổng quan hệ thống truyền lực',
-        description: 'Tài liệu PDF tóm tắt kiến thức trọng tâm, có checklist trước giờ học và bài tập tự luyện sau buổi học.',
-        note: 'Giảng viên nên cho học sinh đọc trước phần sơ đồ nguyên lý.',
-        file_name: 'giao-trinh-he-thong-truyen-luc.pdf',
-        file_size: '2.4 MB',
-        file_type: 'application/pdf',
-        uploaded_by_name: 'Giảng viên Xuân Minh',
-        created_at: new Date().toISOString(),
-    },
-    {
-        id: 9202,
-        class_id: 0,
-        class_name: 'Điện Ô tô B1',
-        title: 'Video mô phỏng mạch điện khởi động',
-        description: 'Link bài giảng trực tuyến, dùng để học sinh xem lại trước khi làm phiếu thực hành.',
-        note: 'Ưu tiên gửi cho nhóm còn yếu phần đọc sơ đồ mạch.',
-        external_link: 'https://vat-learning.example/video-mach-dien-khoi-dong',
-        uploaded_by_name: 'Giảng viên Xuân Minh',
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-    },
-    {
-        id: 9203,
-        class_id: 0,
-        class_name: 'Chẩn đoán Hệ thống C1',
-        title: 'Phiếu bài tập: Đọc mã lỗi OBD-II',
-        description: 'Bài tập thực hành gồm dữ liệu mẫu, tình huống lỗi và phần ghi chú kết luận cho học sinh.',
-        note: 'Dùng sau buổi demo máy chẩn đoán.',
-        file_name: 'phieu-bai-tap-doc-ma-loi-obd.xlsx',
-        file_size: '856 KB',
-        file_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        uploaded_by_name: 'Giảng viên Xuân Minh',
-        created_at: new Date(Date.now() - 172800000).toISOString(),
-    },
-];
-
 export function MaterialsView({ user, classes, selectedClassId, setSelectedClassId }: MaterialsViewProps) {
     if (user.role === 'student') {
         return <StudentMaterialsView classes={classes} />;
@@ -77,7 +37,7 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
     const [alertMsg, setAlertMsg] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [typeFilter, setTypeFilter] = useState<MaterialFilter>('all');
-    const [pinnedIds, setPinnedIds] = useState<number[]>([9201]);
+    const [pinnedIds, setPinnedIds] = useState<number[]>([]);
 
     const headers = useMemo(() => ({
         'Content-Type': 'application/json',
@@ -106,19 +66,13 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
         loadMaterials();
     }, [classes, selectedClassId, setSelectedClassId, loadMaterials]);
 
-    const displayMaterials = materials.length ? materials : demoMaterials.map((item) => ({
-        ...item,
-        class_id: effectiveClassId ?? item.class_id,
-        class_name: classes.find((klass) => klass.id === effectiveClassId)?.name || item.class_name,
-    }));
-
-    const enrichedMaterials = useMemo(() => displayMaterials.map((item, index) => ({
+    const enrichedMaterials = useMemo(() => materials.map((item, index) => ({
         ...item,
         isPinned: pinnedIds.includes(item.id),
         isLink: Boolean(item.external_link && !item.file_name),
         freshness: index === 0 ? 'Mới cập nhật' : index === 1 ? 'Đã xem nhiều' : 'Tài liệu nền tảng',
         downloads: 24 + index * 9,
-    })), [displayMaterials, pinnedIds]);
+    })), [materials, pinnedIds]);
 
     const filteredMaterials = useMemo(() => enrichedMaterials.filter((item) => {
         const keyword = searchQuery.trim().toLowerCase();
@@ -156,7 +110,7 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
             return;
         }
 
-        setAlertMsg('Tài liệu demo đã sẵn sàng để xem trước.');
+        setAlertMsg('Tài liệu này chưa có file hoặc link trong cơ sở dữ liệu.');
         setTimeout(() => setAlertMsg(''), 3000);
     };
 
@@ -201,7 +155,7 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                         >
                             {classes.length ? classes.map((item) => (
                                 <option key={item.id} value={item.id}>{item.name} ({item.code})</option>
-                            )) : <option value="">Lớp demo VAT-MAT01</option>}
+                            )) : <option value="">Chưa có lớp trong cơ sở dữ liệu</option>}
                         </select>
                         {canManage && (
                             <PrimaryButton type="button" onClick={() => setShowUploadModal(true)} className="min-h-12 px-5 text-sm font-black">
@@ -291,7 +245,7 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
 
                                     <div className="mt-4 grid gap-2 rounded-2xl bg-[var(--color-bg-soft)] p-3 text-xs font-bold text-[var(--color-text-secondary)]">
                                         <div className="flex items-center justify-between gap-2"><span>Lớp</span><span className="truncate text-[var(--color-text)]">{item.class_name || classes.find((klass) => klass.id === item.class_id)?.name || 'Lớp đang chọn'}</span></div>
-                                        <div className="flex items-center justify-between gap-2"><span>Đính kèm</span><span className="truncate text-[var(--color-text)]">{item.file_name || item.external_link || 'Tài liệu demo'}</span></div>
+                                        <div className="flex items-center justify-between gap-2"><span>Đính kèm</span><span className="truncate text-[var(--color-text)]">{item.file_name || item.external_link || 'Chưa có đính kèm'}</span></div>
                                         <div className="flex items-center justify-between gap-2"><span>Lượt tải</span><span className="text-[var(--color-text)]">{item.downloads}</span></div>
                                     </div>
 
@@ -341,7 +295,7 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                             </div>
                             <div className="grid gap-3 sm:grid-cols-3">
                                 <PreviewInfo label="Loại" value={previewMaterial.external_link ? 'Link học liệu' : 'File tài liệu'} />
-                                <PreviewInfo label="Tệp" value={previewMaterial.file_name || previewMaterial.external_link || 'Tài liệu demo'} />
+                                <PreviewInfo label="Tệp" value={previewMaterial.file_name || previewMaterial.external_link || 'Chưa có đính kèm'} />
                                 <PreviewInfo label="Ngày tải" value={new Date(previewMaterial.created_at).toLocaleDateString('vi-VN')} />
                             </div>
                             <div className="rounded-3xl border border-slate-200 bg-white p-4">
@@ -458,7 +412,7 @@ function UploadMaterialModal({ classes, selectedClassId, headers, onClose, onSuc
                 <div>
                     <label className="mb-1 block text-xs font-black text-slate-600">Lớp nhận tài liệu <span className="text-red-500">*</span></label>
                     <select value={form.classId} onChange={(event) => setForm({ ...form, classId: Number(event.target.value) })} className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-                        {classes.length ? classes.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.code})</option>) : <option value={0}>Lớp demo VAT-MAT01</option>}
+                        {classes.length ? classes.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.code})</option>) : <option value={0}>Chưa có lớp trong cơ sở dữ liệu</option>}
                     </select>
                 </div>
                 <div>
