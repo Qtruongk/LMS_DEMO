@@ -1,0 +1,24 @@
+[
+  {
+    "id": 1691,
+    "full_name": "Trần Gia Cường",
+    "username": "xm2_student_01",
+    "class_id": 158,
+    "class_name": "Điện Ô tô B1",
+    "total": 20,
+    "present": 16,
+    "absent": 4,
+    "status_28_07": "present"
+  },
+  {
+    "id": 1707,
+    "full_name": "Trần Gia Cường",
+    "username": "xm2_student_17",
+    "class_id": 158,
+    "class_name": "Điện Ô tô B1",
+    "total": 20,
+    "present": 16,
+    "absent": 4,
+    "status_28_07": "present"
+  }
+]

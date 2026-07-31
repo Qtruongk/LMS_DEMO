@@ -259,6 +259,51 @@ function requireRole(req: AuthedRequest, res: express.Response, roles: Role[]) {
     return true;
 }
 
+function randomAttendanceStatus(classId: number, studentId: number, dateValue: string | Date) {
+    const dateKey = new Date(dateValue).toISOString().slice(0, 10).replace(/-/g, '');
+    const seed = Number(dateKey) + classId * 31 + studentId * 17;
+    return seed % 7 === 0 || seed % 11 === 0 ? 'absent' : 'present';
+}
+
+function randomAttendanceNote(status: string) {
+    return status === 'absent'
+        ? 'Tự động đồng bộ từ timeline: vắng mặt ngẫu nhiên để demo dữ liệu.'
+        : 'Tự động đồng bộ từ timeline: có mặt.';
+}
+
+async function syncAttendanceFromTimeline(classId?: number, studentId?: number) {
+    const params: unknown[] = [];
+    const classFilter = classId ? `AND s.class_id = $${params.push(classId)}` : '';
+    const studentFilter = studentId ? `AND e.student_id = $${params.push(studentId)}` : '';
+
+    await pool.query(
+        `INSERT INTO attendance (class_id, student_id, date, status, note)
+         SELECT s.class_id,
+                e.student_id,
+                s.start_time::date,
+                CASE
+                    WHEN (EXTRACT(DOY FROM s.start_time)::int + s.class_id * 31 + e.student_id * 17) % 7 = 0
+                      OR (EXTRACT(DOY FROM s.start_time)::int + s.class_id * 31 + e.student_id * 17) % 11 = 0
+                    THEN 'absent'
+                    ELSE 'present'
+                END AS status,
+                CASE
+                    WHEN (EXTRACT(DOY FROM s.start_time)::int + s.class_id * 31 + e.student_id * 17) % 7 = 0
+                      OR (EXTRACT(DOY FROM s.start_time)::int + s.class_id * 31 + e.student_id * 17) % 11 = 0
+                    THEN 'Tự động đồng bộ từ timeline: vắng mặt ngẫu nhiên để demo dữ liệu.'
+                    ELSE 'Tự động đồng bộ từ timeline: có mặt.'
+                END AS note
+         FROM sessions s
+         JOIN enrollments e ON e.class_id = s.class_id
+         WHERE s.start_time <= now()
+           AND s.status <> 'cancelled'
+           ${classFilter}
+           ${studentFilter}
+         ON CONFLICT (class_id, student_id, date) DO NOTHING`,
+        params,
+    );
+}
+
 function createStudentCode(index: number) {
     return `VAT-ST-${String(Date.now()).slice(-4)}${String(index + 1).padStart(2, '0')}`;
 }
@@ -495,8 +540,40 @@ app.delete('/api/schedule/adjustments/:id', asyncHandler(async (req, res) => {
 app.get('/api/sessions/class/:classId', asyncHandler(async (req, res) => {
     if (!requireUser(req, res)) return;
     const { classId } = req.params;
+    await syncAttendanceFromTimeline(Number(classId));
     const { rows } = await pool.query(
-        'SELECT * FROM sessions WHERE class_id = $1 ORDER BY start_time ASC',
+        `SELECT s.*,
+                COUNT(a.id)::int AS attendance_total,
+                COUNT(a.id) FILTER (WHERE a.status = 'present')::int AS present_count,
+                COUNT(a.id) FILTER (WHERE a.status = 'absent')::int AS absent_count,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'id', m.id,
+                            'class_id', m.class_id,
+                            'class_name', c.name,
+                            'title', m.title,
+                            'description', m.description,
+                            'note', m.note,
+                            'file_name', m.file_name,
+                            'file_size', m.file_size,
+                            'file_type', m.file_type,
+                            'file_url', m.file_url,
+                            'external_link', m.external_link,
+                            'uploaded_by_name', uploader.full_name,
+                            'created_at', m.created_at
+                        ) ORDER BY m.created_at DESC
+                    ) FILTER (WHERE m.id IS NOT NULL),
+                    '[]'::json
+                ) AS materials
+         FROM sessions s
+         JOIN classes c ON c.id = s.class_id
+         LEFT JOIN materials m ON m.session_id = s.id AND COALESCE(m.visibility, 'visible') = 'visible'
+         LEFT JOIN users uploader ON uploader.id = m.uploaded_by
+         LEFT JOIN attendance a ON a.class_id = s.class_id AND a.date = s.start_time::date
+         WHERE s.class_id = $1
+         GROUP BY s.id
+         ORDER BY s.start_time ASC`,
         [classId]
     );
     res.json({ sessions: rows });
@@ -538,6 +615,7 @@ app.get('/api/attendance/class/:classId', asyncHandler(async (req, res) => {
     if (!requireRole(req, res, ['admin', 'teacher'])) return;
     const classId = Number(req.params.classId);
     const date = String(req.query.date || new Date().toISOString().split('T')[0]);
+    await syncAttendanceFromTimeline(classId);
 
     // Check if explicit enrollments exist for this class
     const checkEnroll = await pool.query('SELECT 1 FROM enrollments WHERE class_id = $1 LIMIT 1', [classId]);
@@ -562,13 +640,14 @@ app.get('/api/attendance/class/:classId', asyncHandler(async (req, res) => {
     const attMap = new Map(attendanceRes.rows.map(r => [r.student_id, r]));
     const records = studentsRes.rows.map(s => {
         const existing = attMap.get(s.student_id);
+        const generatedStatus = randomAttendanceStatus(classId, s.student_id, date);
         return {
             student_id: s.student_id,
             full_name: s.full_name || s.username,
             username: s.username,
             student_code: s.student_code,
-            status: existing ? existing.status : 'present',
-            note: existing ? (existing.note || '') : ''
+            status: existing ? existing.status : generatedStatus,
+            note: existing ? (existing.note || '') : randomAttendanceNote(generatedStatus)
         };
     });
 
@@ -608,10 +687,14 @@ app.post('/api/attendance/save', asyncHandler(async (req, res) => {
 app.get('/api/attendance/student', asyncHandler(async (req, res) => {
     if (!requireUser(req, res)) return;
     const userId = (req as AuthedRequest).user!.id;
+    await syncAttendanceFromTimeline(undefined, userId);
     const { rows } = await pool.query(
-        `SELECT a.id, a.class_id, c.name AS class_name, a.date, a.status, a.note, a.created_at
+        `SELECT a.id, a.class_id, c.name AS class_name, a.date, a.status, a.note, a.created_at,
+                s.id AS session_id, s.title AS session_title, s.start_time AS session_start_time, s.end_time AS session_end_time,
+                ROW_NUMBER() OVER (PARTITION BY a.class_id ORDER BY COALESCE(s.start_time, a.date::timestamp), a.created_at)::int AS session_number
          FROM attendance a
          JOIN classes c ON c.id = a.class_id
+         LEFT JOIN sessions s ON s.class_id = a.class_id AND s.start_time::date = a.date
          WHERE a.student_id = $1
          ORDER BY a.date DESC, a.created_at DESC`,
         [userId]

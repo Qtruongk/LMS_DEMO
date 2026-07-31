@@ -141,25 +141,29 @@ export const StudentDashboard = memo(function StudentDashboard({ user, summary, 
     };
 
     return (
-        <div className="mx-auto grid w-full max-w-7xl gap-5 pb-8 sm:gap-6">
-            <section className="relative overflow-hidden rounded-[28px] border border-[var(--color-primary-border)] bg-gradient-to-br from-red-50 via-white to-amber-50 p-4 shadow-sm dark:from-red-950/20 dark:via-[var(--color-card)] dark:to-amber-950/10 sm:p-6 lg:p-7">
-                <div className="pointer-events-none absolute -right-20 -top-24 h-60 w-60 rounded-full bg-[var(--color-primary)]/10 blur-3xl" />
-                <div className="relative grid gap-5 lg:grid-cols-[1.35fr_0.65fr] lg:items-center">
-                    <div className="min-w-0">
-                        <Badge tone="primary">Tổng quan học sinh • {todayLabel}</Badge>
-                        <h1 className="mt-4 max-w-3xl text-2xl font-black leading-tight tracking-[-0.04em] text-[var(--color-text)] sm:text-4xl lg:text-5xl">
-                            Chào {displayName}, hôm nay mình học nhẹ nhàng nhưng đúng trọng tâm.
-                        </h1>
-                        <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)] sm:text-base">
-                            Bảng tổng quan được sắp theo thói quen nhìn tự nhiên: việc quan trọng ở bên trái, hành động nhanh bên phải, mọi nút đều đủ lớn để bấm trên di động.
-                        </p>
-                        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+        <div className="mx-auto grid w-full max-w-7xl gap-4 pb-8 sm:gap-6">
+            <section className="relative overflow-hidden rounded-[32px] border border-red-100 bg-white p-4 shadow-[0_24px_70px_-52px_rgba(127,29,29,0.26)] sm:p-6 lg:p-7 dark:border-red-100 dark:bg-white">
+                <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-red-50 blur-3xl dark:bg-red-50" />
+                <div className="pointer-events-none absolute bottom-0 left-1/2 h-40 w-40 rounded-full bg-amber-50 blur-3xl dark:bg-amber-50" />
+                <div className="relative grid gap-6 lg:grid-cols-[1.12fr_0.88fr] lg:items-stretch">
+                    <div className="flex min-w-0 flex-col justify-between">
+                        <div>
+                            <Badge tone="primary">Tổng quan học sinh • {todayLabel}</Badge>
+                            <h1 className="mt-4 max-w-3xl text-3xl font-black leading-[1.06] tracking-[-0.055em] text-slate-950 sm:text-5xl dark:text-slate-950">
+                                Chào {displayName}, hôm nay mình học nhẹ nhàng nhưng đúng trọng tâm.
+                            </h1>
+                            <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-slate-600 sm:text-base dark:text-slate-600">
+                                Bảng tổng quan được sắp theo thói quen nhìn tự nhiên: việc quan trọng ở bên trái, hành động nhanh bên phải, mọi nút đều đủ lớn để bấm trên di động.
+                            </p>
+                        </div>
+
+                        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                             <Button
                                 variant="primary"
                                 size="lg"
                                 onClick={() => setActiveModal('study-plan')}
                                 leftIcon={<StarIcon size={18} />}
-                                className="min-h-12 w-full sm:w-auto"
+                                className="min-h-13 w-full rounded-2xl px-5 text-base font-extrabold sm:w-auto"
                             >
                                 Xem lộ trình hôm nay
                             </Button>
@@ -168,35 +172,35 @@ export const StudentDashboard = memo(function StudentDashboard({ user, summary, 
                                 size="lg"
                                 onClick={() => onNavigate?.('schedule')}
                                 leftIcon={<CalendarIcon size={18} />}
-                                className="min-h-12 w-full sm:w-auto"
+                                className="min-h-13 w-full rounded-2xl px-5 text-base font-extrabold sm:w-auto"
                             >
                                 Mở thời khoá biểu
                             </Button>
                         </div>
                     </div>
 
-                    <div className="rounded-3xl border border-white/70 bg-white/78 p-4 shadow-lg shadow-red-100/60 backdrop-blur dark:border-white/10 dark:bg-white/5 dark:shadow-none">
-                        <div className="flex items-center justify-between gap-3">
+                    <div className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-[0_22px_55px_-42px_rgba(15,23,42,0.22)] dark:border-slate-100 dark:bg-white">
+                        <div className="flex items-center justify-between gap-4">
                             <div>
-                                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-text-muted)]">Mục tiêu tuần</p>
-                                <p className="mt-1 text-xl font-black text-[var(--color-text)]">Hoàn thành {studyCompletion}%</p>
+                                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-400">Mục tiêu tuần</p>
+                                <p className="mt-1 text-2xl font-black tracking-[-0.04em] text-slate-950 dark:text-slate-950">Hoàn thành {studyCompletion}%</p>
                             </div>
-                            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--color-primary)] text-white shadow-[var(--shadow-primary)]">
+                            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-red-900 text-white shadow-[0_18px_35px_-18px_rgba(127,29,29,0.8)]">
                                 <TrendingUpIcon size={24} />
                             </span>
                         </div>
-                        <div className="mt-4">
+                        <div className="mt-5">
                             <Progress value={studyCompletion} label="Tiến độ cá nhân" />
                         </div>
-                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                            <div className="rounded-2xl bg-[var(--color-bg-soft)] p-3">
-                                <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Buổi học</p>
-                                <p className="mt-1 text-lg font-black text-[var(--color-text)]">2 hôm nay</p>
-                            </div>
-                            <div className="rounded-2xl bg-[var(--color-bg-soft)] p-3">
-                                <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Nhắc việc</p>
-                                <p className="mt-1 text-lg font-black text-[var(--color-text)]">{openTests} mục</p>
-                            </div>
+                        <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                            <button type="button" onClick={() => onNavigate?.('schedule')} className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-left transition hover:-translate-y-0.5 hover:border-red-100 hover:bg-white hover:shadow-sm">
+                                <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Buổi học</p>
+                                <p className="mt-1 text-lg font-black text-slate-950">2 hôm nay</p>
+                            </button>
+                            <button type="button" onClick={() => onNavigate?.('tests')} className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-left transition hover:-translate-y-0.5 hover:border-red-100 hover:bg-white hover:shadow-sm">
+                                <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Nhắc việc</p>
+                                <p className="mt-1 text-lg font-black text-slate-950">{openTests} mục</p>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -210,46 +214,46 @@ export const StudentDashboard = memo(function StudentDashboard({ user, summary, 
                             key={stat.label}
                             type="button"
                             onClick={() => stat.label === 'Việc cần làm' ? onNavigate?.('tests') : undefined}
-                            className="group min-h-[128px] rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--color-primary-border)] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                            className="group min-h-[132px] rounded-[26px] border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-1 hover:border-red-100 hover:shadow-[0_20px_45px_-34px_rgba(127,29,29,0.55)] focus:outline-none focus-visible:ring-2 focus-visible:ring-red-900 focus-visible:ring-offset-2"
                         >
                             <div className="flex items-start justify-between gap-3">
                                 <span className={`grid h-11 w-11 place-items-center rounded-2xl ring-1 ${stat.tone}`}>
                                     <Icon size={22} />
                                 </span>
-                                <ChevronRightIcon size={18} className="mt-1 text-[var(--color-text-muted)] opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
+                                <ChevronRightIcon size={18} className="mt-1 text-slate-300 opacity-0 transition group-hover:translate-x-0.5 group-hover:text-red-800 group-hover:opacity-100" />
                             </div>
-                            <p className="mt-4 text-2xl font-black tracking-[-0.03em] text-[var(--color-text)]">{stat.value}</p>
-                            <p className="mt-1 text-sm font-bold text-[var(--color-text)]">{stat.label}</p>
-                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--color-text-secondary)]">{stat.helper}</p>
+                            <p className="mt-4 text-3xl font-black tracking-[-0.04em] text-slate-950">{stat.value}</p>
+                            <p className="mt-1 text-sm font-black text-slate-800">{stat.label}</p>
+                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{stat.helper}</p>
                         </button>
                     );
                 })}
             </section>
 
-            <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
+            <section className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
                 <Panel
-                    title="Việc cần ưu tiên"
-                    subtitle="Các thẻ được viết rõ hành động tiếp theo để giảm thời gian suy nghĩ và tránh bỏ sót."
+                    title="Việc nên làm trước"
+                    subtitle="Sắp theo thứ tự ưu tiên để học sinh không cần suy nghĩ quá nhiều trước khi bắt đầu."
                     action={<Button size="sm" variant="ghost" onClick={() => onNavigate?.('tests')}>Xem tất cả</Button>}
-                    className="h-fit"
+                    className="h-fit !border-slate-200 !bg-white dark:!border-slate-200 dark:!bg-white"
                 >
                     <div className="grid gap-3">
                         {learningTasks.map((task, index) => (
-                            <article key={task.title} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4 transition hover:border-[var(--color-primary-border)] hover:bg-[var(--color-card)]">
+                            <article key={task.title} className="rounded-[24px] border border-slate-200 !bg-white !bg-none p-4 text-slate-950 shadow-sm transition hover:-translate-y-0.5 hover:border-red-100 hover:bg-red-50/30 hover:shadow-md dark:!border-slate-200 dark:!bg-white dark:!bg-none dark:!text-slate-950">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="flex gap-3">
-                                        <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-[var(--color-card)] font-black text-[var(--color-primary)] shadow-sm">
+                                        <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-red-50 font-black text-red-900 ring-1 ring-red-100">
                                             {index + 1}
                                         </span>
                                         <div>
                                             <div className="flex flex-wrap items-center gap-2">
-                                                <h3 className="font-extrabold text-[var(--color-text)]">{task.title}</h3>
+                                                <h3 className="font-black text-slate-950 dark:text-slate-950">{task.title}</h3>
                                                 <Badge tone={task.tone} size="sm">Ưu tiên</Badge>
                                             </div>
-                                            <p className="mt-1 text-sm leading-6 text-[var(--color-text-secondary)]">{task.description}</p>
+                                            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-600">{task.description}</p>
                                         </div>
                                     </div>
-                                    <Button size="sm" variant="secondary" onClick={() => onNavigate?.(task.module)} className="min-h-10 w-full sm:w-auto">
+                                    <Button size="sm" variant="secondary" onClick={() => onNavigate?.(task.module)} className="min-h-11 w-full rounded-2xl sm:w-auto">
                                         {task.action}
                                     </Button>
                                 </div>
@@ -260,47 +264,49 @@ export const StudentDashboard = memo(function StudentDashboard({ user, summary, 
 
                 <Panel
                     title="Lịch học hôm nay"
-                    subtitle="Dòng thời gian ngắn, dễ quét bằng mắt trên cả máy tính và điện thoại."
+                    subtitle="Timeline ngắn, tương phản rõ, dễ quét bằng mắt trên cả máy tính và điện thoại."
                     action={<Button size="sm" variant="ghost" onClick={() => onNavigate?.('schedule')}>Mở lịch</Button>}
-                    className="h-fit"
+                    className="h-fit !border-slate-200 !bg-white dark:!border-slate-200 dark:!bg-white"
                 >
                     <div className="space-y-3">
                         {todayTimeline.map((item) => (
-                            <div key={`${item.time}-${item.title}`} className="flex gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-3">
-                                <div className="flex w-14 shrink-0 flex-col items-center rounded-2xl bg-[var(--color-bg-soft)] px-2 py-3 text-center">
-                                    <ClockIcon size={16} className="text-[var(--color-primary)]" />
-                                    <span className="mt-1 text-xs font-black text-[var(--color-text)]">{item.time}</span>
+                            <div key={`${item.time}-${item.title}`} className="flex gap-3 rounded-[22px] border border-slate-200 !bg-white p-3 text-slate-950 shadow-sm transition hover:border-red-100 hover:bg-red-50/30 dark:!border-slate-200 dark:!bg-white dark:!text-slate-950">
+                                <div className="flex w-16 shrink-0 flex-col items-center justify-center rounded-2xl bg-slate-50 px-2 py-3 text-center ring-1 ring-slate-100">
+                                    <span className="text-xs font-black text-slate-400">{item.time}</span>
+                                    <span className="mt-1 h-2 w-2 rounded-full bg-red-800" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <h3 className="truncate font-extrabold text-[var(--color-text)]">{item.title}</h3>
+                                        <h3 className="font-black text-slate-950">{item.title}</h3>
                                         <Badge tone={item.tone} size="sm">{item.status}</Badge>
                                     </div>
-                                    <p className="mt-1 text-sm leading-6 text-[var(--color-text-secondary)]">{item.meta}</p>
+                                    <p className="mt-1 text-sm leading-6 text-slate-600">{item.meta}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
                 </Panel>
-            </div>
+            </section>
 
-            <div className="grid gap-5 lg:grid-cols-[0.92fr_1.08fr]">
-                <Panel title="Truy cập nhanh" subtitle="Giữ menu bar nguyên trạng, thêm nút thao tác lớn trong vùng nội dung để dùng tiện hơn trên di động.">
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2">
+            <section className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+                <Panel title="Hành động nhanh" subtitle="Giữ nguyên menu bar, đồng thời thêm đường tắt lớn để thao tác nhanh trên mobile.">
+                    <div className="grid gap-3 sm:grid-cols-2">
                         {quickActions.map((action) => {
                             const Icon = action.icon;
                             return (
                                 <button
-                                    key={action.label}
                                     type="button"
+                                    key={action.label}
                                     onClick={() => onNavigate?.(action.module)}
-                                    className="group min-h-[116px] rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4 text-left transition hover:-translate-y-0.5 hover:border-[var(--color-primary-border)] hover:bg-[var(--color-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                                    className="group flex min-h-24 items-center gap-3 rounded-[24px] border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-red-100 hover:bg-red-50/25 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-red-900 focus-visible:ring-offset-2"
                                 >
-                                    <span className="grid h-10 w-10 place-items-center rounded-2xl bg-[var(--color-card)] text-[var(--color-primary)] shadow-sm transition group-hover:scale-105">
-                                        <Icon size={21} />
+                                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-red-50 text-red-900 ring-1 ring-red-100 transition group-hover:scale-105">
+                                        <Icon size={22} />
                                     </span>
-                                    <p className="mt-3 font-black text-[var(--color-text)]">{action.label}</p>
-                                    <p className="mt-1 text-xs font-semibold text-[var(--color-text-secondary)]">{action.helper}</p>
+                                    <span className="min-w-0">
+                                        <span className="block font-black text-slate-950">{action.label}</span>
+                                        <span className="mt-0.5 block text-sm text-slate-500">{action.helper}</span>
+                                    </span>
                                 </button>
                             );
                         })}
@@ -309,24 +315,24 @@ export const StudentDashboard = memo(function StudentDashboard({ user, summary, 
 
                 <Panel title="Hỗ trợ cá nhân" subtitle="Popup và form đã có sẵn dữ liệu mẫu để học sinh gửi nhanh khi cần trợ giúp.">
                     <div className="grid gap-3 sm:grid-cols-3">
-                        <button type="button" onClick={() => setActiveModal('support')} className="rounded-3xl border border-blue-100 bg-blue-50 p-4 text-left text-blue-800 transition hover:-translate-y-0.5 hover:shadow-md dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-200">
+                        <button type="button" onClick={() => setActiveModal('support')} className="rounded-[24px] border border-blue-100 bg-blue-50 p-4 text-left text-blue-800 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
                             <MessageIcon size={24} />
                             <p className="mt-3 font-black">Hỏi giáo viên</p>
-                            <p className="mt-1 text-xs leading-5 opacity-80">Mẫu form đã điền sẵn nội dung.</p>
+                            <p className="mt-1 text-xs leading-5 opacity-80">Gửi nội dung cần hỗ trợ.</p>
                         </button>
-                        <button type="button" onClick={() => setActiveModal('tuition')} className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4 text-left text-emerald-800 transition hover:-translate-y-0.5 hover:shadow-md dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
+                        <button type="button" onClick={() => setActiveModal('tuition')} className="rounded-[24px] border border-emerald-100 bg-emerald-50 p-4 text-left text-emerald-800 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
                             <WalletIcon size={24} />
                             <p className="mt-3 font-black">Học phí</p>
                             <p className="mt-1 text-xs leading-5 opacity-80">Xem trạng thái thanh toán.</p>
                         </button>
-                        <button type="button" onClick={() => onNavigate?.('feedbacks')} className="rounded-3xl border border-amber-100 bg-amber-50 p-4 text-left text-amber-800 transition hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+                        <button type="button" onClick={() => onNavigate?.('feedbacks')} className="rounded-[24px] border border-amber-100 bg-amber-50 p-4 text-left text-amber-800 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
                             <AlertCircleIcon size={24} />
                             <p className="mt-3 font-black">Góp ý</p>
                             <p className="mt-1 text-xs leading-5 opacity-80">Phản hồi trải nghiệm học.</p>
                         </button>
                     </div>
                 </Panel>
-            </div>
+            </section>
 
             <AnimatePresence>
                 {activeModal && (

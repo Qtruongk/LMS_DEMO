@@ -38,6 +38,10 @@ export type SessionItem = {
     end_time: string;
     status: string;
     teacher_notes?: string;
+    materials?: Material[];
+    attendance_total?: number;
+    present_count?: number;
+    absent_count?: number;
 };
 
 export type Material = {
