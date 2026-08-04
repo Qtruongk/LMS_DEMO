@@ -36,7 +36,7 @@ const addDays = (days: number, hour = 19, minute = 30) => {
 };
 
 export function ClassTimelineView({ user, classes, selectedClassId, setSelectedClassId }: ClassTimelineViewProps) {
-    const canManage = user.role === 'admin' || user.role === 'teacher';
+    const canManage = user.role === 'admin' || user.role === 'owner' || user.role === 'teacher';
     const effectiveClassId = selectedClassId ?? (classes[0]?.id || null);
 
     const [sessions, setSessions] = useState<SessionItem[]>([]);

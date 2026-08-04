@@ -29,6 +29,7 @@ const fadeUp: Variants = {
 };
 
 const demoAccounts = [
+    { role: 'Chủ trung tâm', username: 'owner', password: 'owner123', note: 'Toàn quyền điều hành trung tâm VAT' },
     { role: 'Học sinh', username: 'xm2_student_01', password: 'student123', note: 'Lớp Điện Ô tô B1 • Xuân Minh' },
     { role: 'Giáo viên', username: 'xuanminh', password: 'xuanminh123', note: 'Quản lý lớp ô tô thực hành' },
     { role: 'Quản trị', username: 'admin', password: 'admin123', note: 'Điều phối hệ thống VAT LMS' },

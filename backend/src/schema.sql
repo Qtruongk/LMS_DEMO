@@ -1,7 +1,7 @@
 DROP TABLE IF EXISTS submissions, tests, materials, notifications, sessions, tuitions, enrollments, classes, users CASCADE;
 DROP TYPE IF EXISTS user_role, class_status, session_status, test_type, publish_status, tuition_status, notification_priority;
 
-CREATE TYPE user_role AS ENUM ('student', 'teacher', 'admin');
+CREATE TYPE user_role AS ENUM ('student', 'teacher', 'admin', 'owner');
 CREATE TYPE class_status AS ENUM ('upcoming', 'active', 'completed', 'archived');
 CREATE TYPE session_status AS ENUM ('not_started', 'in_progress', 'completed', 'cancelled', 'rescheduled');
 CREATE TYPE test_type AS ENUM ('quiz', 'test', 'assignment');
@@ -148,6 +148,7 @@ CREATE TABLE feedbacks (
 );
 
 INSERT INTO users (full_name, username, phone, student_code, role, password, specialty, note) VALUES
+('Chủ trung tâm VAT', 'owner', '0900000001', NULL, 'owner', 'owner123', 'Điều hành trung tâm', 'Tài khoản chủ trung tâm có toàn quyền quản lý'),
 ('Quản trị VAT', 'admin', '0900000000', NULL, 'admin', 'admin123', 'Quản trị đào tạo', 'Tài khoản quản trị mặc định');
 
 INSERT INTO notifications (title, content, type, target_role, sender_id, created_by, receiver_type, receiver_ids, priority, created_at)
@@ -164,4 +165,4 @@ FROM (VALUES
   (9, 'Chuẩn bị nội dung thảo luận nhóm', 'Mỗi nhóm chuẩn bị phần trình bày ngắn về chủ đề đã phân công. Giảng viên sẽ gọi ngẫu nhiên trong buổi học.', 'class', 'important'),
   (10, 'Thông báo bảo trì hệ thống học tập', 'Hệ thống có thể gián đoạn ngắn trong khung giờ bảo trì. Vui lòng lưu bài làm trước khi thao tác.', 'general', 'urgent')
 ) AS item(position, title, content, type, priority)
-CROSS JOIN LATERAL (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) admin_user;
+CROSS JOIN LATERAL (SELECT id FROM users WHERE role IN ('owner', 'admin') ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, id LIMIT 1) admin_user;

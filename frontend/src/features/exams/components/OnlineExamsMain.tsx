@@ -12,13 +12,15 @@ import { API_URL } from '../../../services/api';
 type OnlineExamsMainProps = {
     user: User;
     classes: ClassItem[];
+    initialTab?: 'exams' | 'results';
+    hideStudentHeader?: boolean;
 };
 
-export function OnlineExamsMain({ user, classes }: OnlineExamsMainProps) {
+export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStudentHeader = false }: OnlineExamsMainProps) {
     const isStudent = user.role === 'student';
-    const canManage = user.role === 'admin' || user.role === 'teacher';
+    const canManage = user.role === 'admin' || user.role === 'owner' || user.role === 'teacher';
 
-    const [activeTab, setActiveTab] = useState<'exams' | 'results'>('exams');
+    const [activeTab, setActiveTab] = useState<'exams' | 'results'>(initialTab);
     const [exams, setExams] = useState<OnlineExam[]>([]);
     const [studentResults, setStudentResults] = useState<ExamSubmission[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
@@ -60,6 +62,10 @@ export function OnlineExamsMain({ user, classes }: OnlineExamsMainProps) {
             console.error('Lỗi tải kết quả bài thi:', err);
         }
     }, [user.id]);
+
+    useEffect(() => {
+        setActiveTab(initialTab);
+    }, [initialTab]);
 
     useEffect(() => {
         loadExams();
@@ -228,35 +234,37 @@ export function OnlineExamsMain({ user, classes }: OnlineExamsMainProps) {
             )}
 
             {/* Student Navigation Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-xs">
-                <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-100 text-indigo-700 font-bold text-lg dark:bg-indigo-900/60 dark:text-indigo-200">
-                        <ExamBadgeIcon size={22} />
-                    </span>
-                    <div>
-                        <h2 className="text-lg font-bold text-[var(--color-text)]">Kiểm Tra Trực Tuyến</h2>
-                        <p className="text-xs text-[var(--color-text-secondary)]">Làm bài trực tuyến, tự động lưu 30s, đếm ngược thời gian thực và xem kết quả ngay</p>
+            {!hideStudentHeader && (
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-xs">
+                    <div className="flex items-center gap-3">
+                        <span className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-100 text-indigo-700 font-bold text-lg dark:bg-indigo-900/60 dark:text-indigo-200">
+                            <ExamBadgeIcon size={22} />
+                        </span>
+                        <div>
+                            <h2 className="text-lg font-bold text-[var(--color-text)]">Kiểm Tra Trực Tuyến</h2>
+                            <p className="text-xs text-[var(--color-text-secondary)]">Làm bài trực tuyến, tự động lưu 30s, đếm ngược thời gian thực và xem kết quả ngay</p>
+                        </div>
+                    </div>
+
+                    {/* Tab switcher */}
+                    <div className="inline-flex rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-1 gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('exams')}
+                            className={`rounded-lg px-4 py-2 text-xs font-bold transition ${activeTab === 'exams' ? 'bg-[var(--color-primary)] text-white shadow-xs' : 'text-[var(--color-text-secondary)]'}`}
+                        >
+                            Đề Thi Hiện Có ({visibleStudentExams.length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('results')}
+                            className={`rounded-lg px-4 py-2 text-xs font-bold transition ${activeTab === 'results' ? 'bg-[var(--color-primary)] text-white shadow-xs' : 'text-[var(--color-text-secondary)]'}`}
+                        >
+                            Kết Quả Học Tập ({studentResults.length})
+                        </button>
                     </div>
                 </div>
-
-                {/* Tab switcher */}
-                <div className="inline-flex rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-1 gap-1">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('exams')}
-                        className={`rounded-lg px-4 py-2 text-xs font-bold transition ${activeTab === 'exams' ? 'bg-[var(--color-primary)] text-white shadow-xs' : 'text-[var(--color-text-secondary)]'}`}
-                    >
-                        Đề Thi Hiện Có ({visibleStudentExams.length})
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('results')}
-                        className={`rounded-lg px-4 py-2 text-xs font-bold transition ${activeTab === 'results' ? 'bg-[var(--color-primary)] text-white shadow-xs' : 'text-[var(--color-text-secondary)]'}`}
-                    >
-                        Kết Quả Học Tập ({studentResults.length})
-                    </button>
-                </div>
-            </div>
+            )}
 
             {/* Tab 1: Available Exams */}
             {activeTab === 'exams' && (

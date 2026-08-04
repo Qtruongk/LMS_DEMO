@@ -78,7 +78,7 @@ type DashboardProps = {
 };
 
 export const Dashboard = memo(function Dashboard({ user, summary, classes, onNavigate }: DashboardProps) {
-    const isAdmin = user.role === 'admin';
+    const isAdmin = user.role === 'admin' || user.role === 'owner';
     const isStudent = user.role === 'student';
 
     const [selectedDrawerClass, setSelectedDrawerClass] = useState<ClassItem | null>(null);

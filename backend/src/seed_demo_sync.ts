@@ -95,7 +95,7 @@ async function ensureRuntimeSchema(db: Queryable) {
 async function upsertUser(db: Queryable, user: {
     username: string;
     password: string;
-    role: 'student' | 'teacher' | 'admin';
+    role: 'student' | 'teacher' | 'admin' | 'owner';
     fullName: string;
     phone?: string;
     studentCode?: string | null;
@@ -125,6 +125,16 @@ async function main() {
     try {
         await client.query('BEGIN');
         await ensureRuntimeSchema(client);
+
+        const ownerId = await upsertUser(client, {
+            username: 'owner',
+            password: 'owner123',
+            role: 'owner',
+            fullName: 'Chủ trung tâm VAT',
+            phone: '0900000001',
+            specialty: 'Điều hành trung tâm',
+            note: 'Tài khoản chủ trung tâm có toàn quyền quản lý',
+        });
 
         const adminId = await upsertUser(client, {
             username: 'admin',

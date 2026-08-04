@@ -8,6 +8,23 @@ dotenv.config();
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+pool.query(`
+  DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+      ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'owner';
+    END IF;
+  END $$;
+`).then(() => pool.query(`
+  INSERT INTO users (full_name, username, phone, student_code, role, password, specialty, note, status)
+  VALUES ('Chủ trung tâm VAT', 'owner', '0900000001', NULL, 'owner'::user_role, 'owner123', 'Điều hành trung tâm', 'Tài khoản chủ trung tâm có toàn quyền quản lý', 'active')
+  ON CONFLICT (username) DO UPDATE SET
+    full_name = EXCLUDED.full_name,
+    phone = EXCLUDED.phone,
+    role = EXCLUDED.role,
+    specialty = EXCLUDED.specialty,
+    note = EXCLUDED.note,
+    status = 'active';
+`)).catch(console.error);
 pool.query('ALTER TABLE classes ADD COLUMN IF NOT EXISTS class_hours TEXT;').catch(console.error);
 pool.query('ALTER TABLE materials ADD COLUMN IF NOT EXISTS note TEXT;').catch(console.error);
 pool.query('ALTER TABLE materials ADD COLUMN IF NOT EXISTS file_name TEXT;').catch(console.error);
@@ -115,7 +132,7 @@ pool.query(`
     (9, 'Chuẩn bị nội dung thảo luận nhóm', 'Mỗi nhóm chuẩn bị phần trình bày ngắn về chủ đề đã phân công. Giảng viên sẽ gọi ngẫu nhiên trong buổi học.', 'class', 'important'),
     (10, 'Thông báo bảo trì hệ thống học tập', 'Hệ thống có thể gián đoạn ngắn trong khung giờ bảo trì. Vui lòng lưu bài làm trước khi thao tác.', 'general', 'urgent')
   ) AS item(position, title, content, type, priority)
-  CROSS JOIN LATERAL (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1) admin_user
+  CROSS JOIN LATERAL (SELECT id FROM users WHERE role IN ('owner', 'admin') ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, id LIMIT 1) admin_user
   WHERE NOT EXISTS (SELECT 1 FROM notifications);
 `).catch(console.error);
 
@@ -196,7 +213,7 @@ app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
-type Role = 'student' | 'teacher' | 'admin';
+type Role = 'student' | 'teacher' | 'admin' | 'owner';
 
 type AuthedRequest = express.Request & {
     user?: { id: number; role: Role; full_name: string; username: string };
@@ -414,7 +431,7 @@ app.get('/api/classes', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/classes', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin'])) return;
+    if (!requireRole(req, res, ['owner', 'admin'])) return;
     const { name, code, subject, teacher_id, start_date, end_date, schedule, class_hours, location, description, students_csv } = req.body;
 
     const classCode = code || `VAT-CLS-${String(Date.now()).slice(-6)}`;
@@ -477,14 +494,14 @@ app.post('/api/classes', asyncHandler(async (req, res) => {
 }));
 
 app.delete('/api/classes/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin'])) return;
+    if (!requireRole(req, res, ['owner', 'admin'])) return;
     const classId = Number(req.params.id);
     await pool.query('DELETE FROM classes WHERE id = $1', [classId]);
     res.json({ message: 'Đã xóa lớp học thành công.' });
 }));
 
 app.put('/api/classes/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const classId = Number(req.params.id);
     const { name, code, subject, teacher_id, schedule, class_hours, location, description } = req.body;
     const { rows } = await pool.query(
@@ -515,7 +532,7 @@ app.get('/api/schedule/adjustments', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/schedule/adjustments', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const { class_id, date, custom_hours, type, reason } = req.body;
     if (!class_id || !date) {
         res.status(400).json({ message: 'Vui lòng chọn lớp học và ngày áp dụng' });
@@ -530,7 +547,7 @@ app.post('/api/schedule/adjustments', asyncHandler(async (req, res) => {
 }));
 
 app.delete('/api/schedule/adjustments/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const id = Number(req.params.id);
     await pool.query('DELETE FROM schedule_adjustments WHERE id = $1', [id]);
     res.json({ message: 'Đã xóa điều chỉnh lịch.' });
@@ -580,7 +597,7 @@ app.get('/api/sessions/class/:classId', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/sessions', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const { class_id, title, description, start_time, end_time } = req.body;
     const { rows } = await pool.query(
         `INSERT INTO sessions (class_id, title, description, start_time, end_time, status) 
@@ -591,7 +608,7 @@ app.post('/api/sessions', asyncHandler(async (req, res) => {
 }));
 
 app.put('/api/sessions/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const { id } = req.params;
     const { title, description, start_time, end_time, status } = req.body;
     const { rows } = await pool.query(
@@ -604,7 +621,7 @@ app.put('/api/sessions/:id', asyncHandler(async (req, res) => {
 }));
 
 app.delete('/api/sessions/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const { id } = req.params;
     await pool.query('DELETE FROM sessions WHERE id = $1', [id]);
     res.json({ message: 'Xóa buổi học thành công' });
@@ -612,7 +629,7 @@ app.delete('/api/sessions/:id', asyncHandler(async (req, res) => {
 
 // --- Attendance Endpoints ---
 app.get('/api/attendance/class/:classId', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const classId = Number(req.params.classId);
     const date = String(req.query.date || new Date().toISOString().split('T')[0]);
     await syncAttendanceFromTimeline(classId);
@@ -655,7 +672,7 @@ app.get('/api/attendance/class/:classId', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/attendance/save', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const { class_id, date, records } = req.body;
     if (!class_id || !date || !Array.isArray(records)) {
         res.status(400).json({ message: 'Dữ liệu điểm danh không hợp lệ' });
@@ -741,7 +758,7 @@ app.get('/api/materials/class/:classId', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/materials', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const userId = (req as AuthedRequest).user!.id;
     const { class_id, title, note, file_name, file_data, file_size, file_type } = req.body;
     if (!class_id || (!title && !file_name)) {
@@ -768,7 +785,7 @@ app.post('/api/materials', asyncHandler(async (req, res) => {
 }));
 
 app.put('/api/materials/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const id = Number(req.params.id);
     const { title, note, file_name, file_data, file_size, file_type } = req.body;
 
@@ -793,7 +810,7 @@ app.put('/api/materials/:id', asyncHandler(async (req, res) => {
 }));
 
 app.delete('/api/materials/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const id = Number(req.params.id);
     await pool.query('DELETE FROM materials WHERE id = $1', [id]);
     res.json({ message: 'Đã xóa tài liệu thành công!' });
@@ -828,7 +845,7 @@ app.get('/api/notifications', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/notifications', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const user = (req as AuthedRequest).user!;
     const { title, content, type, class_id, receiver_type, receiver_ids, priority } = req.body;
     const trimmedTitle = String(title || '').trim();
@@ -874,7 +891,7 @@ app.post('/api/notifications', asyncHandler(async (req, res) => {
 }));
 
 app.delete('/api/notifications/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const id = Number(req.params.id);
     await pool.query('DELETE FROM notifications WHERE id = $1', [id]);
     res.json({ message: 'Đã xóa thông báo thành công!' });
@@ -896,7 +913,7 @@ app.get('/api/classes/:id', asyncHandler(async (req, res) => {
 }));
 
 app.get('/api/users', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const user = (req as AuthedRequest).user!;
     const role = req.query.role;
     const params: unknown[] = [];
@@ -922,7 +939,7 @@ app.get('/api/users', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/users/student', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin'])) return;
+    if (!requireRole(req, res, ['owner', 'admin'])) return;
     const { username, password, class_id } = req.body;
     const { rows } = await pool.query(
         `INSERT INTO users (username, role, password)
@@ -937,7 +954,7 @@ app.post('/api/users/student', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/users/teacher', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin'])) return;
+    if (!requireRole(req, res, ['owner', 'admin'])) return;
     const { username, password } = req.body;
     const { rows } = await pool.query(
         `INSERT INTO users (username, role, password)
@@ -948,7 +965,7 @@ app.post('/api/users/teacher', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/users/students/import', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin'])) return;
+    if (!requireRole(req, res, ['owner', 'admin'])) return;
     const { csv, class_id } = req.body;
     const lines = String(csv || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const created = [];
@@ -977,7 +994,7 @@ app.post('/api/users/students/import', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/users/import', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin'])) return;
+    if (!requireRole(req, res, ['owner', 'admin'])) return;
     const { csv, default_role = 'student' } = req.body;
     const rawLines = String(csv || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const created = [];
@@ -1002,7 +1019,7 @@ app.post('/api/users/import', asyncHandler(async (req, res) => {
             if (!username) username = `user${Date.now()}${index}`;
         }
 
-        const userRole: Role = (role === 'teacher' || role === 'admin' || role === 'student') ? role : (default_role as Role);
+        const userRole: Role = (role === 'teacher' || role === 'admin' || role === 'owner' || role === 'student') ? role : (default_role as Role);
         const userPassword = password || 'vat1234';
         const studentCode = userRole === 'student' ? createStudentCode(index) : null;
 
@@ -1030,7 +1047,7 @@ app.post('/api/users/import', asyncHandler(async (req, res) => {
 
 
 app.post('/api/materials', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const { class_id, session_id, title, description, file_url, external_link } = req.body;
     const { rows } = await pool.query(
         `INSERT INTO materials (class_id, session_id, title, description, file_url, external_link, uploaded_by)
@@ -1041,7 +1058,7 @@ app.post('/api/materials', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/tests', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const { class_id, session_id, title, description, type, due_date, max_score, status } = req.body;
     const { rows } = await pool.query(
         `INSERT INTO tests (class_id, session_id, title, description, type, due_date, max_score, status, created_by)
@@ -1052,7 +1069,7 @@ app.post('/api/tests', asyncHandler(async (req, res) => {
 }));
 
 app.patch('/api/tuitions/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin'])) return;
+    if (!requireRole(req, res, ['owner', 'admin'])) return;
     const { amount_paid, status, paid_at, note } = req.body;
     const { rows } = await pool.query(
         `UPDATE tuitions SET amount_paid=$1, status=$2, paid_at=$3, note=$4, updated_at=now() WHERE id=$5 RETURNING *`,
@@ -1076,7 +1093,7 @@ app.get('/api/tuitions', asyncHandler(async (req, res) => {
     if (user.role === 'student') {
         query += ' WHERE t.student_id = $1';
         params.push(user.id);
-    } else if (user.role !== 'admin') {
+    } else if (user.role !== 'admin' && user.role !== 'owner') {
         res.status(403).json({ message: 'Forbidden' });
         return;
     }
@@ -1088,7 +1105,7 @@ app.get('/api/tuitions', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/submissions/:id/grade', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const { score, feedback } = req.body;
     const { rows } = await pool.query(
         `UPDATE submissions SET score=$1, feedback=$2, graded_by=$3, graded_at=now() WHERE id=$4 RETURNING *`,
@@ -1110,7 +1127,7 @@ app.get('/api/feedbacks', asyncHandler(async (req, res) => {
     if (user.role === 'student') {
         query += ' WHERE f.student_id = $1';
         params.push(user.id);
-    } else if (user.role !== 'admin' && user.role !== 'teacher') {
+    } else if (user.role !== 'admin' && user.role !== 'owner' && user.role !== 'teacher') {
         res.status(403).json({ message: 'Forbidden' });
         return;
     }
@@ -1131,7 +1148,7 @@ app.post('/api/feedbacks', asyncHandler(async (req, res) => {
 }));
 
 app.put('/api/feedbacks/:id/respond', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const { admin_response } = req.body;
     const { id } = req.params;
     const { rows } = await pool.query(
@@ -1203,7 +1220,7 @@ app.get('/api/online-exams/:id', asyncHandler(async (req, res) => {
 
 // Create new online exam with questions
 app.post('/api/online-exams', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const userId = (req as AuthedRequest).user!.id;
     const {
         title, subject, class_id, description, start_time, end_time, duration_minutes,
@@ -1256,7 +1273,7 @@ app.post('/api/online-exams', asyncHandler(async (req, res) => {
 
 // Update online exam and questions
 app.put('/api/online-exams/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const examId = Number(req.params.id);
     const userId = (req as AuthedRequest).user!.id;
     const {
@@ -1311,7 +1328,7 @@ app.put('/api/online-exams/:id', asyncHandler(async (req, res) => {
 
 // Delete online exam
 app.delete('/api/online-exams/:id', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const examId = Number(req.params.id);
     await pool.query('DELETE FROM online_exams WHERE id = $1', [examId]);
     res.json({ message: 'Đã xóa bài kiểm tra thành công!' });
@@ -1439,7 +1456,7 @@ app.post('/api/online-exams/submissions/:id/submit', asyncHandler(async (req, re
 
 // Teacher Get All Submissions for Exam & Analytics
 app.get('/api/online-exams/:id/submissions', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const examId = Number(req.params.id);
 
     const { rows } = await pool.query(
@@ -1456,7 +1473,7 @@ app.get('/api/online-exams/:id/submissions', asyncHandler(async (req, res) => {
 
 // Teacher Grade Essay & Feedback
 app.put('/api/online-exams/submissions/:id/grade', asyncHandler(async (req, res) => {
-    if (!requireRole(req, res, ['admin', 'teacher'])) return;
+    if (!requireRole(req, res, ['owner', 'admin', 'teacher'])) return;
     const subId = Number(req.params.id);
     const userId = (req as AuthedRequest).user!.id;
     const { essay_scores, teacher_feedback, total_score } = req.body;

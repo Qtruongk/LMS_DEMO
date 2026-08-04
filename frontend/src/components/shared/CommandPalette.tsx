@@ -41,7 +41,7 @@ export function CommandPalette({ isOpen, onClose, onSelectModule, classes, onSel
     if (!isOpen) return null;
 
     const isStudent = user?.role === 'student';
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = user?.role === 'admin' || user?.role === 'owner';
 
     const baseItems: SearchItem[] = [
         { id: 'nav-dashboard', title: 'Trang tổng quan', category: 'Điều hướng', icon: <BookIcon size={16} />, action: () => { onSelectModule('dashboard'); onClose(); } },

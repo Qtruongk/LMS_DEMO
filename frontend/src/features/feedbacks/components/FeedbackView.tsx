@@ -11,6 +11,7 @@ type FeedbackViewProps = {
 
 type FeedbackStatus = 'all' | 'pending' | 'resolved';
 type FeedbackCategory = 'support' | 'learning' | 'schedule' | 'facility' | 'suggestion';
+type FeedbackTone = 'rose' | 'emerald' | 'sky' | 'amber';
 
 const categories: Record<FeedbackCategory, { label: string; icon: string; helper: string; tone: string; sampleSubject: string; sampleContent: string }> = {
     support: {
@@ -61,6 +62,12 @@ const responseTemplates = [
     'Cảm ơn góp ý rất cụ thể của em. Nội dung này phù hợp để cải thiện trải nghiệm học, giảng viên sẽ trao đổi thêm với bộ phận đào tạo.',
 ];
 
+const studentJourney = [
+    { label: 'Chọn nhóm', helper: 'Chạm một thẻ phù hợp để hệ thống tự điền mẫu.', icon: '1' },
+    { label: 'Viết rõ ý', helper: 'Nêu vấn đề, thời điểm xảy ra và mong muốn hỗ trợ.', icon: '2' },
+    { label: 'Theo dõi', helper: 'Xem trạng thái chờ xử lý hoặc phản hồi chính thức.', icon: '3' },
+];
+
 function formatDateTime(value?: string) {
     if (!value) return 'Chưa cập nhật';
     const date = new Date(value);
@@ -98,7 +105,9 @@ function inferCategory(item: FeedbackItem): FeedbackCategory {
 }
 
 export function FeedbackView({ user }: FeedbackViewProps) {
-    const canRespond = user.role === 'admin' || user.role === 'teacher';
+    const canRespond = user.role === 'admin' || user.role === 'owner' || user.role === 'teacher';
+    const isStudent = user.role === 'student';
+    const displayName = user.full_name || user.username || 'Học viên';
 
     const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -215,6 +224,10 @@ export function FeedbackView({ user }: FeedbackViewProps) {
     const resolvedCount = feedbacks.filter((item) => item.status === 'resolved').length;
     const responseRate = feedbacks.length ? Math.round((resolvedCount / feedbacks.length) * 100) : 0;
     const latestFeedback = feedbacks[0];
+    const heroTitle = isStudent ? 'Phản hồi của học sinh' : 'Trung tâm xử lý phản hồi';
+    const heroDescription = isStudent
+        ? 'Không gian phản hồi được tối ưu cho mắt nhìn trên điện thoại: thông tin quan trọng ở trên cùng, nút gửi dễ chạm, biểu mẫu có dữ liệu mẫu và trạng thái phản hồi được tách rõ để học sinh theo dõi thuận tiện.'
+        : 'Thiết kế ưu tiên luồng đọc - hiểu - xử lý: phản hồi chờ được đặt nổi bật, nội dung chia thành thẻ dễ quét mắt, thao tác trả lời nằm đúng ngữ cảnh và popup có dữ liệu mẫu để phản hồi nhanh.';
 
     return (
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-24 md:pb-8">
@@ -230,23 +243,25 @@ export function FeedbackView({ user }: FeedbackViewProps) {
                             </span>
                         </div>
                         <div>
-                            <h1 className="text-2xl font-black tracking-[-0.04em] text-slate-950 md:text-4xl">Phản hồi của giảng viên</h1>
+                            <h1 className="text-2xl font-black tracking-[-0.04em] text-slate-950 md:text-4xl">{heroTitle}</h1>
                             <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-600">
-                                Thiết kế ưu tiên luồng đọc - hiểu - xử lý: phản hồi chờ được đặt nổi bật, nội dung chia thành thẻ dễ quét mắt, thao tác trả lời nằm đúng ngữ cảnh và popup có dữ liệu mẫu để phản hồi nhanh.
+                                {heroDescription}
                             </p>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-3">
-                            <MetricCard label="Chờ xử lý" value={pendingCount} hint="Cần phản hồi trước" tone="rose" />
-                            <MetricCard label="Đã giải quyết" value={resolvedCount} hint="Đã trả lời học viên" tone="emerald" />
-                            <MetricCard label="Tỷ lệ xử lý" value={`${responseRate}%`} hint="Hiệu suất phản hồi" tone="sky" />
+                            <MetricCard label={isStudent ? 'Đang chờ' : 'Chờ xử lý'} value={pendingCount} hint={isStudent ? 'Đã gửi, đang được xem' : 'Cần phản hồi trước'} tone="rose" />
+                            <MetricCard label={isStudent ? 'Đã trả lời' : 'Đã giải quyết'} value={resolvedCount} hint={isStudent ? 'Có phản hồi chính thức' : 'Đã trả lời học viên'} tone="emerald" />
+                            <MetricCard label="Tỷ lệ xử lý" value={`${responseRate}%`} hint={isStudent ? 'Mức độ cập nhật' : 'Hiệu suất phản hồi'} tone="sky" />
                         </div>
                     </div>
 
                     <div className="flex w-full flex-col justify-between gap-4 rounded-[1.5rem] border border-red-100 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)] md:w-80">
                         <div>
-                            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Gợi ý hành vi</p>
+                            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">{isStudent ? `Xin chào ${displayName}` : 'Gợi ý hành vi'}</p>
                             <p className="mt-2 text-sm font-bold leading-6 text-slate-900">
-                                Trả lời theo công thức: ghi nhận vấn đề, nêu hướng xử lý, chốt thời điểm cập nhật để học viên cảm thấy được lắng nghe.
+                                {isStudent
+                                    ? 'Hãy gửi phản hồi ngắn gọn, cụ thể. Trung tâm sẽ phân loại và cập nhật trạng thái để em không phải tìm kiếm nhiều.'
+                                    : 'Trả lời theo công thức: ghi nhận vấn đề, nêu hướng xử lý, chốt thời điểm cập nhật để học viên cảm thấy được lắng nghe.'}
                             </p>
                         </div>
                         {latestFeedback ? (
@@ -266,6 +281,19 @@ export function FeedbackView({ user }: FeedbackViewProps) {
                         )}
                     </div>
                 </div>
+                {isStudent && (
+                    <div className="grid gap-3 border-t border-red-100 bg-white/70 p-4 sm:grid-cols-3 md:px-7">
+                        {studentJourney.map((step) => (
+                            <div key={step.label} className="flex items-start gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)] text-sm font-black text-white">{step.icon}</span>
+                                <div>
+                                    <p className="text-sm font-black text-slate-950">{step.label}</p>
+                                    <p className="mt-0.5 text-xs font-semibold leading-5 text-slate-600">{step.helper}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </section>
 
             {alertMsg && (
@@ -306,7 +334,7 @@ export function FeedbackView({ user }: FeedbackViewProps) {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Tìm học viên, tiêu đề, nội dung..."
+                            placeholder={isStudent ? 'Tìm tiêu đề, nội dung hoặc phản hồi...' : 'Tìm học viên, tiêu đề, nội dung...'}
                             className="min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-border)]"
                         />
                     </div>
@@ -342,8 +370,11 @@ export function FeedbackView({ user }: FeedbackViewProps) {
                                     <button
                                         key={key}
                                         onClick={() => {
-                                            setSearchQuery(item.label);
-                                            if (!canRespond) handleCategoryChange(key);
+                                            setSearchQuery('');
+                                            if (!canRespond) {
+                                                handleCategoryChange(key);
+                                                setShowModal(true);
+                                            }
                                         }}
                                         className={`w-full rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 ${item.tone}`}
                                     >
@@ -356,18 +387,25 @@ export function FeedbackView({ user }: FeedbackViewProps) {
                     </Panel>
 
                     <Panel className="rounded-[1.5rem] p-5">
-                        <h2 className="text-base font-black text-slate-950">Mẫu trả lời nhanh</h2>
-                        <div className="mt-3 flex flex-col gap-2">
-                            {responseTemplates.map((template) => (
-                                <button
-                                    key={template}
-                                    onClick={() => setAdminResponse(template)}
-                                    className="rounded-2xl bg-slate-50 p-3 text-left text-xs font-bold leading-5 text-slate-600 transition hover:bg-red-50 hover:text-[var(--color-primary)]"
-                                >
-                                    {template}
-                                </button>
-                            ))}
-                        </div>
+                        <h2 className="text-base font-black text-slate-950">{canRespond ? 'Mẫu trả lời nhanh' : 'Mẹo viết phản hồi dễ được xử lý'}</h2>
+                        {canRespond ? (
+                            <div className="mt-3 flex flex-col gap-2">
+                                {responseTemplates.map((template) => (
+                                    <button
+                                        key={template}
+                                        onClick={() => setAdminResponse(template)}
+                                        className="rounded-2xl bg-slate-50 p-3 text-left text-xs font-bold leading-5 text-slate-600 transition hover:bg-red-50 hover:text-[var(--color-primary)]"
+                                    >
+                                        {template}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="mt-3 space-y-3 text-sm font-semibold leading-6 text-slate-600">
+                                <p className="rounded-2xl bg-slate-50 p-3">Viết theo cấu trúc: vấn đề → thời điểm → mong muốn hỗ trợ.</p>
+                                <p className="rounded-2xl bg-red-50 p-3 text-[var(--color-primary)]">Không cần viết dài; phản hồi rõ ý sẽ giúp giảng viên xử lý nhanh hơn.</p>
+                            </div>
+                        )}
                     </Panel>
                 </aside>
             </div>
@@ -399,11 +437,12 @@ export function FeedbackView({ user }: FeedbackViewProps) {
     );
 }
 
-function MetricCard({ label, value, hint, tone }: { label: string; value: number | string; hint: string; tone: 'rose' | 'emerald' | 'sky' }) {
+function MetricCard({ label, value, hint, tone }: { label: string; value: number | string; hint: string; tone: FeedbackTone }) {
     const toneClass = {
         rose: 'border-rose-100 bg-rose-50/80 text-rose-700 shadow-rose-950/5',
         emerald: 'border-emerald-100 bg-emerald-50/80 text-emerald-700 shadow-emerald-950/5',
         sky: 'border-sky-100 bg-sky-50/80 text-sky-700 shadow-sky-950/5',
+        amber: 'border-amber-100 bg-amber-50/80 text-amber-700 shadow-amber-950/5',
     }[tone];
 
     return (

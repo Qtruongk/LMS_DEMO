@@ -36,7 +36,7 @@ export const Classes = memo(function Classes({
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
 
-    const isAdmin = userRole === 'admin';
+    const isAdmin = userRole === 'admin' || userRole === 'owner';
     const activeClass = classes.find((item) => item.id === selectedClassId) ?? classes[0];
     const teachers = users.filter((u) => u.role === 'teacher');
 
@@ -187,6 +187,8 @@ function ClassesTableView({
     onEditClass?: (item: ClassItem) => void;
     userRole: string;
 }) {
+    const canAdminister = userRole === 'admin' || userRole === 'owner';
+
     if (!classes.length) return <EmptyState />;
 
     return (
@@ -252,7 +254,7 @@ function ClassesTableView({
                                         </span>
                                     </td>
                                     <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                                        {userRole === 'admin' ? (
+                                        {canAdminister ? (
                                             <div className="inline-flex items-center gap-1.5 justify-end">
                                                 <button
                                                     type="button"

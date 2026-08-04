@@ -6,7 +6,7 @@ dotenv.config();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL || 'postgresql://lms_user:lms_password@127.0.0.1:5432/lms_demo' });
 
 type Queryable = Pick<PoolClient, 'query'>;
-type Role = 'admin' | 'teacher' | 'student';
+type Role = 'owner' | 'admin' | 'teacher' | 'student';
 
 const now = new Date();
 

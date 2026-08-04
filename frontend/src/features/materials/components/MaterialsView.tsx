@@ -27,7 +27,7 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
         return <StudentMaterialsView classes={classes} />;
     }
 
-    const canManage = user.role === 'admin' || user.role === 'teacher';
+    const canManage = user.role === 'admin' || user.role === 'owner' || user.role === 'teacher';
     const effectiveClassId = selectedClassId ?? (classes[0]?.id || null);
 
     const [materials, setMaterials] = useState<Material[]>([]);

@@ -99,7 +99,7 @@ export function ScheduleView({
             const dayOfWeekIndex = d.getDay(); // 0 is Sunday, 1 is Monday...
             const dayName = dayOfWeekIndex === 0 ? 'Chủ Nhật' : `Thứ ${dayOfWeekIndex + 1}`;
             const formattedDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-            
+
             const dayClasses = getClassesForDayIndex(dayOfWeekIndex === 0 ? 0 : dayOfWeekIndex + 1);
 
             days.push({
@@ -135,22 +135,20 @@ export function ScheduleView({
                         <button
                             type="button"
                             onClick={() => setScheduleTab('date_specific')}
-                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                                scheduleTab === 'date_specific'
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${scheduleTab === 'date_specific'
                                     ? 'bg-[var(--color-bg-card)] text-[var(--color-primary)] shadow-xs'
                                     : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
-                            }`}
+                                }`}
                         >
                             <CalendarIcon size={14} /> Lịch Theo Ngày & Đột Xuất
                         </button>
                         <button
                             type="button"
                             onClick={() => setScheduleTab('fixed')}
-                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                                scheduleTab === 'fixed'
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${scheduleTab === 'fixed'
                                     ? 'bg-[var(--color-bg-card)] text-[var(--color-primary)] shadow-xs'
                                     : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
-                            }`}
+                                }`}
                         >
                             <ChartIcon size={14} /> Lịch Cố Định Hàng Tuần
                         </button>
@@ -173,7 +171,7 @@ export function ScheduleView({
                     </div>
 
                     {/* Add Adjustment Button for Admin / Teacher */}
-                    {(userRole === 'admin' || userRole === 'teacher') && (
+                    {(userRole === 'admin' || userRole === 'owner' || userRole === 'teacher') && (
                         <button
                             type="button"
                             onClick={() => setShowAdjustmentModal(true)}
@@ -209,9 +207,8 @@ export function ScheduleView({
                                             {/* Ngày Cụ Thể */}
                                             <td className="px-5 py-4 border-r border-[var(--color-border)] bg-[var(--color-bg-soft)]/20 align-top">
                                                 <div className="flex items-center gap-2">
-                                                    <span className={`grid h-8 w-8 place-items-center rounded-xl font-extrabold text-xs shadow-xs ${
-                                                        day.isToday ? 'bg-amber-500 text-white' : 'bg-[var(--color-primary-soft)] text-[var(--color-primary)]'
-                                                    }`}>
+                                                    <span className={`grid h-8 w-8 place-items-center rounded-xl font-extrabold text-xs shadow-xs ${day.isToday ? 'bg-amber-500 text-white' : 'bg-[var(--color-primary-soft)] text-[var(--color-primary)]'
+                                                        }`}>
                                                         {day.dayName.slice(0, 3)}
                                                     </span>
                                                     <div>
@@ -233,16 +230,15 @@ export function ScheduleView({
                                                     {dayAdjustments.map((adj) => (
                                                         <div
                                                             key={`adj-${adj.id}`}
-                                                            className={`relative rounded-2xl border p-3.5 shadow-sm transition ${
-                                                                adj.type === 'canceled'
+                                                            className={`relative rounded-2xl border p-3.5 shadow-sm transition ${adj.type === 'canceled'
                                                                     ? 'border-red-300 bg-red-50/50 dark:border-red-900/60 dark:bg-red-950/40'
                                                                     : adj.type === 'rescheduled'
-                                                                    ? 'border-amber-300 bg-amber-50/50 dark:border-amber-900/60 dark:bg-amber-950/40'
-                                                                    : 'border-blue-300 bg-blue-50/50 dark:border-blue-900/60 dark:bg-blue-950/40'
-                                                            }`}
+                                                                        ? 'border-amber-300 bg-amber-50/50 dark:border-amber-900/60 dark:bg-amber-950/40'
+                                                                        : 'border-blue-300 bg-blue-50/50 dark:border-blue-900/60 dark:bg-blue-950/40'
+                                                                }`}
                                                         >
                                                             {/* Action Delete Adjustment */}
-                                                            {(userRole === 'admin' || userRole === 'teacher') && (
+                                                            {(userRole === 'admin' || userRole === 'owner' || userRole === 'teacher') && (
                                                                 <button
                                                                     type="button"
                                                                     title="Xóa điều chỉnh này"
@@ -254,19 +250,18 @@ export function ScheduleView({
                                                             )}
 
                                                             <div className="mb-2 flex items-center gap-1.5">
-                                                                <span className={`rounded-md px-2 py-0.5 font-bold text-[10px] uppercase tracking-wider ${
-                                                                    adj.type === 'canceled'
+                                                                <span className={`rounded-md px-2 py-0.5 font-bold text-[10px] uppercase tracking-wider ${adj.type === 'canceled'
                                                                         ? 'bg-red-600 text-white'
                                                                         : adj.type === 'rescheduled'
-                                                                        ? 'bg-amber-600 text-white'
-                                                                        : 'bg-blue-600 text-white'
-                                                                }`}>
+                                                                            ? 'bg-amber-600 text-white'
+                                                                            : 'bg-blue-600 text-white'
+                                                                    }`}>
                                                                     {adj.type === 'canceled' ? 'Báo Nghỉ / Hoãn' : adj.type === 'rescheduled' ? 'Đổi Giờ Đột Xuất' : 'Lịch Học Bù'}
                                                                 </span>
                                                             </div>
 
                                                             <h4 className="font-bold text-xs text-[var(--color-text)] leading-snug">{adj.class_name || 'Lớp học'}</h4>
-                                                            
+
                                                             {adj.custom_hours && (
                                                                 <div className="my-1.5 font-mono text-xs font-bold text-amber-700 dark:text-amber-300">
                                                                     Giờ mới: {adj.custom_hours}
@@ -476,7 +471,7 @@ function AddAdjustmentModal({
                 <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)] mb-5">
                     <div className="flex items-center gap-3">
                         <span className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-600 text-white shadow-md font-bold">
-                            
+
                         </span>
                         <div>
                             <h3 className="text-xl font-bold text-[var(--color-text)]">Điều Chỉnh Lịch Đột Xuất</h3>

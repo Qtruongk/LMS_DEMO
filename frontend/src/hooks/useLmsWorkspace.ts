@@ -48,7 +48,7 @@ export function useLmsWorkspace() {
         setAdjustments(adjRes.adjustments ?? []);
         const firstId = classRes.classes?.[0]?.id ?? null;
         setSelectedClassId((old) => old ?? firstId);
-        if (currentUser.role === 'admin') {
+        if (currentUser.role === 'admin' || currentUser.role === 'owner') {
             const tuitionRes = await fetch(`${API_URL}/api/tuitions`, { headers: authHeaders }).then((r) => r.json());
             const userRes = await fetch(`${API_URL}/api/users`, { headers: authHeaders }).then((r) => r.json());
             setTuitions(tuitionRes.tuitions ?? []);

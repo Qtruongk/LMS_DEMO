@@ -1,6 +1,7 @@
 import type { Role } from '../types';
 
 export const roleLabel: Record<Role, string> = {
+    owner: 'Chủ trung tâm',
     admin: 'Quản trị viên',
     teacher: 'Giáo viên',
     student: 'Học sinh',

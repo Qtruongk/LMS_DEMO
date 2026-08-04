@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthLanding } from './features/auth/components/AuthLanding';
 import { AttendancePanel } from './features/classes/components/AttendancePanel';
 import { ClassTimelineView } from './features/classes/components/ClassTimelineView';
@@ -17,8 +17,6 @@ import { useLmsWorkspace } from './hooks/useLmsWorkspace';
 import { useTheme } from './hooks/useTheme';
 import { AppLayout, PageTitle } from './layouts/AppLayout';
 import { CommandPalette } from './components/shared/CommandPalette';
-
-const Panel = lazy(() => import('./components/shared/LazyPanel'));
 
 function App() {
   const workspace = useLmsWorkspace();
@@ -123,7 +121,7 @@ function App() {
         />
       )}
       {activeModule === 'tests' && <OnlineExamsMain user={workspace.user} classes={workspace.classes} />}
-      {activeModule === 'results' && <Suspense fallback={null}><Panel title="Kết quả học tập" items={workspace.classDetail?.tests ?? []} /></Suspense>}
+      {activeModule === 'results' && <OnlineExamsMain user={workspace.user} classes={workspace.classes} initialTab="results" hideStudentHeader />}
       {activeModule === 'notifications' && <NotificationsView user={workspace.user} classes={workspace.classes} />}
       {activeModule === 'schedule' && (
         <ScheduleView

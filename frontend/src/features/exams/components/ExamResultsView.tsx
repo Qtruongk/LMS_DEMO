@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Panel } from '../../../components/shared/ui';
 import { CalendarIcon } from '../../../components/shared/icons';
 import { AwardIcon, FlagIcon } from './ExamIcons';
@@ -7,114 +8,255 @@ type ExamResultsViewProps = {
     results: ExamSubmission[];
 };
 
+type ResultFilter = 'all' | 'graded' | 'pending_essay' | 'in_progress';
+
+const statusLabel: Record<ExamSubmission['status'], string> = {
+    graded: 'Đã có điểm',
+    pending_essay: 'Chờ chấm tự luận',
+    in_progress: 'Đang làm bài',
+};
+
+const statusTone: Record<ExamSubmission['status'], string> = {
+    graded: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/70 dark:text-emerald-100',
+    pending_essay: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/70 dark:text-amber-100',
+    in_progress: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-200',
+};
+
+function formatDate(value?: string) {
+    if (!value) return 'Chưa nộp';
+    return new Date(value).toLocaleString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    });
+}
+
+function getScoreInfo(result: ExamSubmission) {
+    const score = Number(result.total_score || 0);
+    const maxScore = Number(result.max_score || 10);
+    const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+    const visible = result.status === 'graded' && result.show_score_after_submit !== false;
+    return { score, maxScore, percent: Math.max(0, Math.min(100, percent)), visible };
+}
+
 export function ExamResultsView({ results }: ExamResultsViewProps) {
-    const ranked = [...results]
-        .filter((item) => item.status === 'graded')
-        .sort((a, b) => Number(b.total_score || 0) - Number(a.total_score || 0))
-        .slice(0, 5);
+    const [query, setQuery] = useState('');
+    const [status, setStatus] = useState<ResultFilter>('all');
+    const [selectedResult, setSelectedResult] = useState<ExamSubmission | null>(null);
+
+    const filteredResults = useMemo(() => {
+        const normalizedQuery = query.trim().toLowerCase();
+        return results.filter((item) => {
+            const matchStatus = status === 'all' || item.status === status;
+            const searchable = [item.exam_title, item.subject, item.class_name, item.assigned_grader_name]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+            return matchStatus && (!normalizedQuery || searchable.includes(normalizedQuery));
+        });
+    }, [query, results, status]);
 
     return (
-        <div className="grid gap-5">
+        <div className="grid gap-5 pb-4">
             <Panel
-                title="Bảng Xếp Hạng Điểm Theo Đề Thi"
-                subtitle="Tạo động lực học tập bằng thứ hạng nhẹ nhàng, không gây áp lực quá mức cho học sinh"
+                title={`Lịch sử & kết quả bài kiểm tra (${filteredResults.length}/${results.length})`}
+                subtitle="Bộ lọc rõ ràng, thẻ kết quả dễ quét bằng mắt, nút xem chi tiết đủ lớn cho thao tác trên di động"
             >
-                {ranked.length ? (
-                    <div className="grid gap-3 md:grid-cols-5">
-                        {ranked.map((res, index) => (
-                            <div key={res.id} className="rounded-3xl border border-[var(--color-border)] bg-gradient-to-br from-amber-50 to-white p-4 text-center shadow-xs dark:from-amber-950/40 dark:to-slate-900">
-                                <div className="mx-auto mb-2 grid h-11 w-11 place-items-center rounded-2xl bg-amber-400 text-sm font-black text-white">
-                                    #{index + 1}
-                                </div>
-                                <div className="line-clamp-2 text-xs font-black text-[var(--color-text)]">{res.exam_title}</div>
-                                <div className="mt-2 text-lg font-black text-amber-700 dark:text-amber-200">{res.total_score}/{res.max_score || 10}</div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="py-8 text-center text-xs text-[var(--color-text-muted)]">Chưa có dữ liệu xếp hạng</div>
-                )}
-            </Panel>
+                <div className="mb-4 grid gap-3 rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3 md:grid-cols-[1fr_14rem_auto]">
+                    <label className="grid gap-1 text-xs font-bold text-[var(--color-text-secondary)]">
+                        Tìm bài kiểm tra
+                        <input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Nhập tên bài, môn, lớp hoặc giáo viên..."
+                            className="h-11 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 text-sm font-semibold text-[var(--color-text)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-soft)]"
+                        />
+                    </label>
+                    <label className="grid gap-1 text-xs font-bold text-[var(--color-text-secondary)]">
+                        Trạng thái
+                        <select
+                            value={status}
+                            onChange={(event) => setStatus(event.target.value as ResultFilter)}
+                            className="h-11 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 text-sm font-semibold text-[var(--color-text)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-soft)]"
+                        >
+                            <option value="all">Tất cả kết quả</option>
+                            <option value="graded">Đã có điểm</option>
+                            <option value="pending_essay">Chờ chấm tự luận</option>
+                            <option value="in_progress">Đang làm bài</option>
+                        </select>
+                    </label>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setQuery('');
+                            setStatus('all');
+                        }}
+                        className="h-11 self-end rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 text-xs font-black text-[var(--color-text)] transition hover:border-[var(--color-primary-border)] hover:bg-[var(--color-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                    >
+                        Xóa lọc
+                    </button>
+                </div>
 
-            <Panel
-                title={`Lịch Sử & Kết Quả Bài Kiểm Tra (${results.length} lượt làm)`}
-                subtitle="Theo dõi điểm tự chấm, bài tự luận chờ giáo viên, nhận xét text/audio và log hành vi làm bài"
-            >
-                {results.length ? (
+                {filteredResults.length ? (
                     <div className="grid gap-4">
-                        {results.map((res) => {
-                            const isGraded = res.status === 'graded';
-                            const score = Number(res.total_score || 0);
-                            const maxScore = Number(res.max_score || 10);
-                            const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+                        {filteredResults.map((res) => {
+                            const { score, maxScore, percent, visible } = getScoreInfo(res);
                             const suspiciousLogs = (res.proctoring_logs || []).filter((log) => log.type === 'fullscreen_exit' || log.type === 'visibility_hidden');
 
                             return (
                                 <article
                                     key={res.id}
-                                    className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-xs transition hover:border-[var(--color-primary-border)]"
+                                    className="overflow-hidden rounded-[1.75rem] border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm transition hover:border-[var(--color-primary-border)] hover:shadow-md"
                                 >
-                                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] pb-3">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-black text-base text-[var(--color-text)]">{res.exam_title || 'Bài kiểm tra trực tuyến'}</span>
-                                            {res.class_name && (
-                                                <span className="rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
-                                                    {res.class_name}
-                                                </span>
-                                            )}
+                                    <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[1fr_13rem] lg:items-center">
+                                        <div className="min-w-0 space-y-3">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={`rounded-full border px-3 py-1 text-[11px] font-black ${statusTone[res.status]}`}>{statusLabel[res.status]}</span>
+                                                {res.class_name && (
+                                                    <span className="rounded-full bg-blue-100 px-3 py-1 text-[11px] font-black text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+                                                        {res.class_name}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <h3 className="text-base font-black leading-6 text-[var(--color-text)] sm:text-lg">{res.exam_title || 'Bài kiểm tra trực tuyến'}</h3>
+                                                <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-[var(--color-text-secondary)]">
+                                                    <span><CalendarIcon size={13} /> Nộp lúc: {formatDate(res.submit_time)}</span>
+                                                    <span>Môn: <b>{res.subject || 'Chung'}</b></span>
+                                                    <span>Lượt: <b>#{res.attempt_number}</b></span>
+                                                </p>
+                                            </div>
+
+                                            <div className="grid gap-2 sm:grid-cols-3">
+                                                <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3 text-xs">
+                                                    <b className="mb-1 flex items-center gap-1 text-[var(--color-text)]"><AwardIcon size={14} /> Điểm bài kiểm tra</b>
+                                                    <span className="font-bold text-[var(--color-text-secondary)]">{visible ? `${score.toFixed(2)} / ${maxScore.toFixed(2)} (${percent}%)` : 'Chưa công bố điểm'}</span>
+                                                </div>
+                                                <div className={`rounded-2xl border p-3 text-xs ${suspiciousLogs.length ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-100' : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100'}`}>
+                                                    <b className="mb-1 flex items-center gap-1"><FlagIcon size={14} /> Hành vi làm bài</b>
+                                                    {suspiciousLogs.length ? `${suspiciousLogs.length} cảnh báo rời tab/toàn màn hình.` : 'Không có cảnh báo bất thường.'}
+                                                </div>
+                                                <div className="rounded-2xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-900 dark:border-purple-900 dark:bg-purple-950/50 dark:text-purple-100">
+                                                    <b className="mb-1 block">Giáo viên chấm</b>
+                                                    {res.assigned_grader_name || 'Theo phân công'}
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <span className="inline-flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
-                                                <CalendarIcon size={13} /> Nộp lúc: {res.submit_time ? new Date(res.submit_time).toLocaleString('vi-VN') : 'Đang làm'}
-                                            </span>
-                                            <span className={`rounded-xl px-3 py-1 text-xs font-bold ${isGraded
-                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
-                                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
-                                                }`}>
-                                                {isGraded ? `${score} / ${maxScore} điểm (${percent}%)` : '⏳ Đang chờ chấm tự luận'}
-                                            </span>
+                                        <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3 text-center">
+                                            <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-[var(--color-card)] shadow-inner ring-8 ring-blue-100 dark:ring-blue-950">
+                                                <div>
+                                                    <div className="text-2xl font-black text-[var(--color-text)]">{visible ? `${percent}%` : '—'}</div>
+                                                    <div className="text-[10px] font-black uppercase tracking-wider text-[var(--color-text-muted)]">Kết quả</div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedResult(res)}
+                                                className="mt-3 h-11 w-full rounded-2xl bg-[var(--color-primary)] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[var(--color-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-card)]"
+                                            >
+                                                Xem chi tiết
+                                            </button>
                                         </div>
                                     </div>
 
-                                    <div className="grid gap-3">
-                                        <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--color-text-secondary)]">
-                                            <span>Lượt làm bài: <b>#{res.attempt_number}</b></span>
-                                            <span>Môn học: <b>{res.subject || 'Chung'}</b></span>
-                                            <span>GV chấm: <b>{res.assigned_grader_name || 'Theo phân công'}</b></span>
+                                    {res.teacher_feedback && (
+                                        <div className="border-t border-[var(--color-border)] bg-purple-50/70 p-4 text-xs text-purple-900 dark:bg-purple-950/30 dark:text-purple-100 sm:px-5">
+                                            <b className="block mb-1 text-[11px] uppercase tracking-wider text-purple-700 dark:text-purple-300">Nhận xét từ giảng viên</b>
+                                            <p className="leading-5 italic">{res.teacher_feedback}</p>
+                                            {res.teacher_audio_feedback_url && <audio controls src={res.teacher_audio_feedback_url} className="mt-2 w-full" />}
                                         </div>
-
-                                        <div className="grid gap-3 md:grid-cols-3">
-                                            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3 text-xs">
-                                                <b className="mb-1 flex items-center gap-1 text-[var(--color-text)]"><AwardIcon size={14} /> Trạng thái chấm</b>
-                                                {isGraded ? 'Đã khóa điểm, không chỉnh sửa sau khi hoàn thành.' : 'Đang chờ giáo viên chấm phần nói/viết/mindmap.'}
-                                            </div>
-                                            <div className={`rounded-2xl border p-3 text-xs ${suspiciousLogs.length ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-100' : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100'}`}>
-                                                <b className="mb-1 flex items-center gap-1"><FlagIcon size={14} /> Log làm bài</b>
-                                                {suspiciousLogs.length ? `${suspiciousLogs.length} lần thoát tab/toàn màn hình được ghi nhận.` : 'Không ghi nhận rời tab trong dữ liệu mẫu.'}
-                                            </div>
-                                            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-100">
-                                                <b className="mb-1 block">Chi tiết kết quả</b>
-                                                Tự động chấm trắc nghiệm, tự luận hiển thị sau khi giáo viên hoàn tất.
-                                            </div>
-                                        </div>
-
-                                        {res.teacher_feedback && (
-                                            <div className="rounded-2xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-900 dark:border-purple-900/60 dark:bg-purple-950/60 dark:text-purple-100">
-                                                <b className="block mb-1 text-[11px] uppercase tracking-wider text-purple-700 dark:text-purple-300">Nhận xét từ Giảng viên:</b>
-                                                <p className="italic">{res.teacher_feedback}</p>
-                                                {res.teacher_audio_feedback_url && <audio controls src={res.teacher_audio_feedback_url} className="mt-2 w-full" />}
-                                            </div>
-                                        )}
-                                    </div>
+                                    )}
                                 </article>
                             );
                         })}
                     </div>
                 ) : (
-                    <div className="py-12 text-center text-xs text-[var(--color-text-muted)]">Chưa có lịch sử làm bài kiểm tra nào</div>
+                    <div className="rounded-3xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-soft)] px-4 py-12 text-center text-sm text-[var(--color-text-muted)]">
+                        Không tìm thấy kết quả phù hợp với bộ lọc hiện tại.
+                    </div>
                 )}
             </Panel>
+
+            {selectedResult && (
+                <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/55 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" role="dialog" aria-modal="true">
+                    <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-2xl sm:max-w-2xl sm:rounded-[2rem]">
+                        {(() => {
+                            const { score, maxScore, percent, visible } = getScoreInfo(selectedResult);
+                            const suspiciousLogs = (selectedResult.proctoring_logs || []).filter((log) => log.type === 'fullscreen_exit' || log.type === 'visibility_hidden');
+                            return (
+                                <div className="space-y-4">
+                                    <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] pb-4">
+                                        <div>
+                                            <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-black ${statusTone[selectedResult.status]}`}>{statusLabel[selectedResult.status]}</span>
+                                            <h3 className="mt-3 text-xl font-black text-[var(--color-text)]">{selectedResult.exam_title || 'Bài kiểm tra trực tuyến'}</h3>
+                                            <p className="mt-1 text-xs font-semibold text-[var(--color-text-secondary)]">{selectedResult.subject || 'Chung'} • {selectedResult.class_name || 'Chưa gán lớp'}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedResult(null)}
+                                            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[var(--color-border)] text-lg font-black text-[var(--color-text)] transition hover:bg-[var(--color-bg-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                                            aria-label="Đóng chi tiết kết quả"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+
+                                    <div className="grid gap-3 sm:grid-cols-3">
+                                        <div className="rounded-3xl bg-blue-50 p-4 text-blue-950 dark:bg-blue-950/50 dark:text-blue-100">
+                                            <p className="text-[11px] font-black uppercase tracking-wider opacity-70">Điểm</p>
+                                            <p className="mt-2 text-2xl font-black">{visible ? `${score.toFixed(2)}/${maxScore.toFixed(2)}` : 'Chưa công bố'}</p>
+                                        </div>
+                                        <div className="rounded-3xl bg-emerald-50 p-4 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-100">
+                                            <p className="text-[11px] font-black uppercase tracking-wider opacity-70">Hoàn thành</p>
+                                            <p className="mt-2 text-2xl font-black">{visible ? `${percent}%` : '—'}</p>
+                                        </div>
+                                        <div className="rounded-3xl bg-amber-50 p-4 text-amber-950 dark:bg-amber-950/50 dark:text-amber-100">
+                                            <p className="text-[11px] font-black uppercase tracking-wider opacity-70">Cảnh báo</p>
+                                            <p className="mt-2 text-2xl font-black">{suspiciousLogs.length}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-3 text-sm sm:grid-cols-2">
+                                        <div className="rounded-2xl border border-[var(--color-border)] p-3">
+                                            <b className="text-[var(--color-text)]">Thời gian nộp</b>
+                                            <p className="mt-1 text-[var(--color-text-secondary)]">{formatDate(selectedResult.submit_time)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-[var(--color-border)] p-3">
+                                            <b className="text-[var(--color-text)]">Giáo viên chấm</b>
+                                            <p className="mt-1 text-[var(--color-text-secondary)]">{selectedResult.assigned_grader_name || 'Theo phân công'}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-[var(--color-border)] p-3">
+                                            <b className="text-[var(--color-text)]">Lượt làm bài</b>
+                                            <p className="mt-1 text-[var(--color-text-secondary)]">#{selectedResult.attempt_number}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-[var(--color-border)] p-3">
+                                            <b className="text-[var(--color-text)]">Ngày chấm</b>
+                                            <p className="mt-1 text-[var(--color-text-secondary)]">{formatDate(selectedResult.graded_at)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-3xl border border-purple-200 bg-purple-50 p-4 text-sm text-purple-950 dark:border-purple-900/70 dark:bg-purple-950/40 dark:text-purple-100">
+                                        <b className="block text-xs uppercase tracking-wider text-purple-700 dark:text-purple-300">Nhận xét</b>
+                                        <p className="mt-2 leading-6">{selectedResult.teacher_feedback || 'Chưa có nhận xét từ giáo viên. Hệ thống sẽ cập nhật khi giáo viên hoàn tất chấm bài.'}</p>
+                                        {selectedResult.teacher_audio_feedback_url && <audio controls src={selectedResult.teacher_audio_feedback_url} className="mt-3 w-full" />}
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedResult(null)}
+                                        className="h-12 w-full rounded-2xl bg-[var(--color-primary)] text-sm font-black text-white transition hover:bg-[var(--color-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-card)]"
+                                    >
+                                        Đã hiểu kết quả
+                                    </button>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

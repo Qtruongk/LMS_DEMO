@@ -86,7 +86,7 @@ function getRelativeTime(value?: string) {
 }
 
 export function NotificationsView({ user, classes }: NotificationsViewProps) {
-    const canManage = user.role === 'admin' || user.role === 'teacher';
+    const canManage = user.role === 'admin' || user.role === 'owner' || user.role === 'teacher';
 
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
@@ -560,7 +560,7 @@ function PostNotificationModal({
                                     <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[var(--color-bg-soft)] p-1">
                                         {[
                                             { id: 'class', label: 'Theo lớp' },
-                                            { id: 'all', label: user.role === 'admin' ? 'Toàn hệ thống' : 'Tất cả' },
+                                            { id: 'all', label: (user.role === 'admin' || user.role === 'owner') ? 'Toàn hệ thống' : 'Tất cả' },
                                         ].map((option) => (
                                             <button
                                                 type="button"
