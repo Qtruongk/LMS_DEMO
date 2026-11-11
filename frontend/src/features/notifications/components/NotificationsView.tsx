@@ -1,14 +1,26 @@
-import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Panel, PrimaryButton } from '../../../components/shared/ui';
-import { XIcon, SearchIcon } from '../../../components/shared/icons';
-import type { ClassItem, User, NotificationItem } from '../../../types';
+import { XIcon, SearchIcon, UploadIcon } from '../../../components/shared/icons';
+import type { ClassItem, User, NotificationItem, NotificationAttachment } from '../../../types';
 import { API_URL } from '../../../services/api';
 import { StudentAnnouncements } from './StudentAnnouncements';
+import {
+    MAX_NOTIFICATION_ATTACHMENTS,
+    MAX_NOTIFICATION_ATTACHMENT_SIZE,
+    NotificationAttachmentList,
+    RichNotificationContent,
+    escapeHtml,
+    formatFileSize,
+    getNotificationAttachments,
+    readFileAsNotificationAttachment,
+    stripHtml,
+} from './notificationContent';
 
 type NotificationsViewProps = {
     user: User;
     classes: ClassItem[];
+    selectedClassId?: number | null;
 };
 
 type NotificationPriority = 'normal' | 'important' | 'urgent';
@@ -85,14 +97,14 @@ function getRelativeTime(value?: string) {
     return formatDateTime(value);
 }
 
-export function NotificationsView({ user, classes }: NotificationsViewProps) {
+export function NotificationsView({ user, classes, selectedClassId }: NotificationsViewProps) {
     const canManage = user.role === 'admin' || user.role === 'owner' || user.role === 'teacher';
 
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [showPostModal, setShowPostModal] = useState<boolean>(false);
     const [alertMsg, setAlertMsg] = useState<string>('');
-    const [activeTab, setActiveTab] = useState<NotificationTab>('all');
+    const [activeTab, setActiveTab] = useState<NotificationTab>(selectedClassId ? 'class' : 'all');
     const [priorityFilter, setPriorityFilter] = useState<'ALL' | NotificationPriority>('ALL');
     const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -140,11 +152,12 @@ export function NotificationsView({ user, classes }: NotificationsViewProps) {
         const priority = normalizePriority(n.priority);
         const query = searchQuery.trim().toLowerCase();
         const matchesTab = activeTab === 'all' || (activeTab === 'system' ? type !== 'class' : type === 'class');
+        const matchesSelectedClass = !selectedClassId || type !== 'class' || n.class_id === selectedClassId;
         const matchesPriority = priorityFilter === 'ALL' || priority === priorityFilter;
-        const matchesSearch = !query || [n.title, n.content, n.class_name, n.created_by_name, n.sender_name]
+        const matchesSearch = !query || [n.title, stripHtml(n.content_html) || n.content, n.class_name, n.created_by_name, n.sender_name]
             .filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query));
-        return matchesTab && matchesPriority && matchesSearch;
+        return matchesTab && matchesSelectedClass && matchesPriority && matchesSearch;
     });
 
     const urgentCount = notifications.filter((n) => normalizePriority(n.priority) === 'urgent').length;
@@ -167,14 +180,11 @@ export function NotificationsView({ user, classes }: NotificationsViewProps) {
                         </div>
                         <div>
                             <h1 className="text-2xl font-black tracking-[-0.04em] text-[var(--color-text)] md:text-4xl">Thông báo dành cho giảng viên</h1>
-                            <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-[var(--color-text-secondary)]">
-                                Không gian quản trị được tối ưu cho mắt nhìn: ưu tiên nội dung quan trọng, thao tác nhanh bằng một tay trên di động và biểu mẫu có gợi ý sẵn để đăng thông báo chính xác hơn.
-                            </p>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-3">
-                            <MetricCard label="Khẩn cấp" value={urgentCount} hint="Cần xử lý trước" tone="rose" />
-                            <MetricCard label="Theo lớp" value={classCount} hint="Gửi đúng nhóm học" tone="blue" />
-                            <MetricCard label="Hệ thống" value={systemCount} hint="Thông tin chung" tone="emerald" />
+                            <MetricCard label="Khẩn cấp" value={urgentCount} tone="rose" />
+                            <MetricCard label="Theo lớp" value={classCount} tone="blue" />
+                            <MetricCard label="Hệ thống" value={systemCount} tone="emerald" />
                         </div>
                     </div>
 
@@ -193,7 +203,7 @@ export function NotificationsView({ user, classes }: NotificationsViewProps) {
                         ) : null}
                         {canManage && (
                             <PrimaryButton onClick={() => setShowPostModal(true)} className="h-12 w-full rounded-2xl bg-[var(--color-primary)] text-sm font-black shadow-lg shadow-red-900/15 hover:bg-[var(--color-primary-hover)]">
-                                + Đăng thông báo mới
+                                Thông báo mới
                             </PrimaryButton>
                         )}
                     </div>
@@ -279,7 +289,7 @@ export function NotificationsView({ user, classes }: NotificationsViewProps) {
 
                 <aside className="hidden xl:flex xl:flex-col xl:gap-4">
                     <Panel className="rounded-[1.5rem] p-5">
-                        <h2 className="text-base font-black text-[var(--color-text)]">Chuẩn UX khi đăng</h2>
+                        <h2 className="text-base font-black text-[var(--color-text)]">Mức độ ưu tiên</h2>
                         <div className="mt-4 space-y-3">
                             {Object.entries(priorityMeta).map(([key, meta]) => (
                                 <div key={key} className={`rounded-2xl border p-3 ${meta.tone}`}>
@@ -311,6 +321,7 @@ export function NotificationsView({ user, classes }: NotificationsViewProps) {
                     <PostNotificationModal
                         user={user}
                         classes={classes}
+                        selectedClassId={selectedClassId}
                         onClose={() => setShowPostModal(false)}
                         onSuccess={() => {
                             setShowPostModal(false);
@@ -326,7 +337,7 @@ export function NotificationsView({ user, classes }: NotificationsViewProps) {
     );
 }
 
-function MetricCard({ label, value, hint, tone }: { label: string; value: number; hint: string; tone: 'rose' | 'blue' | 'emerald' }) {
+function MetricCard({ label, value, tone }: { label: string; value: number; tone: 'rose' | 'blue' | 'emerald' }) {
     const toneClass = {
         rose: 'border-rose-100 bg-rose-50/80 text-rose-700 shadow-rose-950/5',
         blue: 'border-sky-100 bg-sky-50/80 text-sky-700 shadow-sky-950/5',
@@ -337,7 +348,6 @@ function MetricCard({ label, value, hint, tone }: { label: string; value: number
         <div className={`rounded-2xl border ${toneClass} p-4 shadow-sm`}>
             <div className="text-2xl font-black tracking-[-0.04em]">{value}</div>
             <div className="mt-1 text-sm font-extrabold text-slate-900">{label}</div>
-            <div className="text-xs font-semibold text-slate-600">{hint}</div>
         </div>
     );
 }
@@ -347,6 +357,7 @@ function NotificationCard({ item, index, canManage, onDelete }: { item: Notifica
     const meta = priorityMeta[priority];
     const type = (item.type || (item.class_id ? 'class' : 'general')).toLowerCase();
     const author = item.created_by_name || item.sender_name || 'VAT Academy';
+    const attachments = getNotificationAttachments(item);
 
     return (
         <motion.article
@@ -374,7 +385,14 @@ function NotificationCard({ item, index, canManage, onDelete }: { item: Notifica
                     </div>
 
                     <h3 className="text-lg font-black leading-snug tracking-[-0.02em] text-[var(--color-text)] md:text-xl">{item.title}</h3>
-                    <p className="mt-2 whitespace-pre-line text-sm font-medium leading-6 text-[var(--color-text-secondary)]">{item.content}</p>
+                    <RichNotificationContent html={item.content_html} fallback={item.content} className="mt-2" />
+
+                    {attachments.length > 0 && (
+                        <div className="mt-4">
+                            <p className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-[var(--color-text-muted)]">Tệp đính kèm ({attachments.length})</p>
+                            <NotificationAttachmentList attachments={attachments} compact />
+                        </div>
+                    )}
 
                     <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--color-text-muted)]">
                         <span>Người đăng: {author}</span>
@@ -419,9 +437,6 @@ function EmptyState({ canManage, onCreate }: { canManage: boolean; onCreate: () 
         <div className="rounded-[1.5rem] border border-dashed border-[var(--color-border)] bg-[var(--color-card)] p-8 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-[var(--color-primary-soft)] text-2xl">📭</div>
             <h3 className="mt-4 text-lg font-black text-[var(--color-text)]">Không tìm thấy thông báo phù hợp</h3>
-            <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-[var(--color-text-secondary)]">
-                Thử đổi bộ lọc hoặc tìm bằng từ khóa ngắn hơn. Thiết kế này giữ vùng đọc thoáng để mắt dễ quét nội dung chính.
-            </p>
             {canManage && (
                 <PrimaryButton onClick={onCreate} className="mt-5 rounded-2xl px-5 py-3 text-sm font-black">
                     Tạo thông báo mới
@@ -434,31 +449,97 @@ function EmptyState({ canManage, onCreate }: { canManage: boolean; onCreate: () 
 function PostNotificationModal({
     user,
     classes,
+    selectedClassId,
     onClose,
     onSuccess,
     headers,
 }: {
     user: User;
     classes: ClassItem[];
+    selectedClassId?: number | null;
     onClose: () => void;
     onSuccess: () => void;
     headers: Record<string, string>;
 }) {
+    const starterContent = 'Các em vui lòng xem lại nội dung đã học, chuẩn bị câu hỏi thắc mắc và hoàn thành bài tập trước 20:00 hôm nay. Giảng viên sẽ kiểm tra nhanh ở đầu buổi học.';
     const [title, setTitle] = useState('Nhắc lịch học và bài chuẩn bị cho buổi tiếp theo');
-    const [content, setContent] = useState('Các em vui lòng xem lại nội dung đã học, chuẩn bị câu hỏi thắc mắc và hoàn thành bài tập trước 20:00 hôm nay. Giảng viên sẽ kiểm tra nhanh ở đầu buổi học.');
+    const [contentHtml, setContentHtml] = useState(() => textToEditorHtml(starterContent));
     const [targetType, setTargetType] = useState<'all' | 'class'>('class');
-    const [classId, setClassId] = useState<number>(classes[0]?.id ?? 0);
+    const [classId, setClassId] = useState<number>(selectedClassId ?? classes[0]?.id ?? 0);
     const [priority, setPriority] = useState<NotificationPriority>('important');
+    const [attachments, setAttachments] = useState<NotificationAttachment[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const editorRef = useRef<HTMLDivElement | null>(null);
 
     const selectedPriority = priorityMeta[priority];
-    const canSubmit = title.trim().length >= 8 && content.trim().length >= 20 && (targetType === 'all' || classId > 0);
+    const canUseGlobalTarget = user.role === 'admin' || user.role === 'owner';
+    const plainContent = stripHtml(contentHtml);
+    const canSubmit = title.trim().length >= 8 && plainContent.length >= 20 && (targetType === 'all' ? canUseGlobalTarget : classId > 0);
+
+    function textToEditorHtml(text: string) {
+        return text.split('\n').map((line) => line.trim() ? `<p>${escapeHtml(line)}</p>` : '<p><br></p>').join('');
+    }
+
+    const syncEditorContent = (html: string) => {
+        setContentHtml(html);
+        if (editorRef.current) editorRef.current.innerHTML = html;
+    };
+
+    const runEditorCommand = (command: 'bold' | 'italic' | 'underline' | 'insertUnorderedList') => {
+        editorRef.current?.focus();
+        document.execCommand(command, false);
+        setContentHtml(editorRef.current?.innerHTML || '');
+    };
+
+    const handleRecipientChange = (value: string) => {
+        if (value === 'all' && canUseGlobalTarget) {
+            setTargetType('all');
+            setClassId(0);
+            return;
+        }
+
+        setTargetType('class');
+        setClassId(Number(value));
+    };
+
+    const handleFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files ?? []);
+        event.target.value = '';
+        if (!files.length) return;
+
+        const availableSlots = MAX_NOTIFICATION_ATTACHMENTS - attachments.length;
+        if (availableSlots <= 0) {
+            setError(`Chỉ có thể tải tối đa ${MAX_NOTIFICATION_ATTACHMENTS} tệp cho mỗi thông báo.`);
+            return;
+        }
+
+        const oversized = files.find((file) => file.size > MAX_NOTIFICATION_ATTACHMENT_SIZE);
+        if (oversized) {
+            setError(`Tệp "${oversized.name}" vượt quá ${formatFileSize(MAX_NOTIFICATION_ATTACHMENT_SIZE)}.`);
+            return;
+        }
+
+        try {
+            const selectedFiles = files.slice(0, availableSlots);
+            const uploadedFiles = await Promise.all(selectedFiles.map(readFileAsNotificationAttachment));
+            setAttachments((current) => [...current, ...uploadedFiles]);
+            setError(files.length > availableSlots ? `Đã thêm ${availableSlots} tệp đầu tiên. Mỗi thông báo tối đa ${MAX_NOTIFICATION_ATTACHMENTS} tệp.` : '');
+        } catch (err) {
+            console.error('Lỗi đọc tệp thông báo:', err);
+            setError(err instanceof Error ? err.message : 'Không thể đọc tệp tải lên.');
+        }
+    };
+
+    const removeAttachment = (index: number) => {
+        setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    };
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+        const normalizedContent = stripHtml(contentHtml);
         if (!canSubmit) {
-            setError('Vui lòng nhập tiêu đề tối thiểu 8 ký tự, nội dung tối thiểu 20 ký tự và chọn lớp nhận thông báo.');
+            setError('Vui lòng chọn lớp học, nhập tiêu đề tối thiểu 8 ký tự và nội dung tối thiểu 20 ký tự.');
             return;
         }
 
@@ -470,7 +551,9 @@ function PostNotificationModal({
                 headers,
                 body: JSON.stringify({
                     title: title.trim(),
-                    content: content.trim(),
+                    content: normalizedContent,
+                    content_html: contentHtml,
+                    attachments,
                     priority,
                     type: targetType === 'class' ? 'class' : 'general',
                     receiver_type: targetType === 'all' ? 'all' : 'class',
@@ -494,8 +577,9 @@ function PostNotificationModal({
     };
 
     const applyTemplate = (templateTitle: string) => {
+        const nextContent = `Kính gửi học viên,\n\n${templateTitle}. Các em vui lòng đọc kỹ nội dung, thực hiện đúng thời hạn và phản hồi cho giảng viên nếu cần hỗ trợ.\n\nCảm ơn các em.`;
         setTitle(templateTitle);
-        setContent(`Kính gửi học viên,\n\n${templateTitle}. Các em vui lòng đọc kỹ nội dung, thực hiện đúng thời hạn và phản hồi cho giảng viên nếu cần hỗ trợ.\n\nCảm ơn các em.`);
+        syncEditorContent(textToEditorHtml(nextContent));
     };
 
     return (
@@ -504,21 +588,21 @@ function PostNotificationModal({
                 initial={{ opacity: 0, y: 24, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 24, scale: 0.98 }}
-                className="max-h-[94vh] w-full max-w-3xl overflow-hidden rounded-t-[2rem] border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl sm:rounded-[2rem]"
+                className="max-h-[94vh] w-full max-w-4xl overflow-hidden rounded-t-[2rem] border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl sm:rounded-[2rem]"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="post-notification-title"
             >
-                <div className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] bg-[var(--color-bg-soft)] p-5 sm:p-6">
+                <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border)] bg-gradient-to-br from-red-50 via-white to-slate-50 p-5 sm:p-6 dark:from-red-950/20 dark:via-slate-950 dark:to-slate-900">
                     <div>
-                        <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[var(--color-primary)]">Biểu mẫu thông minh</p>
-                        <h2 id="post-notification-title" className="mt-1 text-xl font-black tracking-[-0.03em] text-[var(--color-text)] sm:text-2xl">Đăng thông báo mới</h2>
-                        <p className="mt-1 text-sm font-medium text-[var(--color-text-secondary)]">Dữ liệu mẫu đã được điền sẵn để giảng viên chỉnh nhanh và gửi chính xác.</p>
+                        <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-white/80">Bảng tin giáo viên</p>
+                        <h2 id="post-notification-title" className="mt-1 text-xl font-black tracking-[-0.03em] text-white sm:text-2xl">Thông báo mới</h2>
+                        <p className="mt-1 text-sm font-semibold text-white/90">Chọn lớp nhận tin, soạn nội dung có định dạng cơ bản và đính kèm tệp nếu cần.</p>
                     </div>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-card)] text-[var(--color-text-secondary)] transition hover:bg-rose-50 hover:text-rose-600"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-card)] text-[var(--color-text-secondary)] shadow-sm transition hover:bg-rose-50 hover:text-rose-600"
                         aria-label="Đóng form đăng thông báo"
                     >
                         <XIcon size={20} />
@@ -526,68 +610,103 @@ function PostNotificationModal({
                 </div>
 
                 <form onSubmit={handleSubmit} className="max-h-[calc(94vh-112px)] overflow-y-auto p-5 sm:p-6">
-                    <div className="grid gap-5 lg:grid-cols-[1fr_260px]">
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
                         <div className="space-y-4">
-                            <div>
-                                <label className="mb-2 block text-sm font-black text-[var(--color-text)]">Tiêu đề <span className="text-rose-500">*</span></label>
-                                <input
-                                    required
-                                    minLength={8}
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                    className="min-h-12 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] px-4 text-sm font-bold text-[var(--color-text)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-border)]"
-                                    placeholder="VD: Nhắc lịch học và bài chuẩn bị"
-                                />
-                                <p className="mt-1 text-xs font-semibold text-[var(--color-text-muted)]">Nên bắt đầu bằng hành động: Nhắc, Cập nhật, Yêu cầu, Thông báo.</p>
-                            </div>
-
-                            <div>
-                                <label className="mb-2 block text-sm font-black text-[var(--color-text)]">Nội dung chi tiết <span className="text-rose-500">*</span></label>
-                                <textarea
-                                    required
-                                    minLength={20}
-                                    rows={7}
-                                    value={content}
-                                    onChange={(e) => setContent(e.target.value)}
-                                    className="w-full resize-none rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4 text-sm font-medium leading-6 text-[var(--color-text)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-border)]"
-                                    placeholder="Nhập nội dung rõ ràng: ai cần làm gì, thời hạn nào, phản hồi ở đâu..."
-                                />
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="grid gap-4 sm:grid-cols-[1fr_240px]">
                                 <div>
-                                    <label className="mb-2 block text-sm font-black text-[var(--color-text)]">Đối tượng nhận</label>
-                                    <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[var(--color-bg-soft)] p-1">
-                                        {[
-                                            { id: 'class', label: 'Theo lớp' },
-                                            { id: 'all', label: (user.role === 'admin' || user.role === 'owner') ? 'Toàn hệ thống' : 'Tất cả' },
-                                        ].map((option) => (
-                                            <button
-                                                type="button"
-                                                key={option.id}
-                                                onClick={() => setTargetType(option.id as 'all' | 'class')}
-                                                className={`min-h-11 rounded-xl text-sm font-black transition ${targetType === option.id ? 'bg-[var(--color-card)] text-[var(--color-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'}`}
-                                            >
-                                                {option.label}
-                                            </button>
-                                        ))}
-                                    </div>
+                                    <label className="mb-2 block text-sm font-black text-[var(--color-text)]">Tiêu đề <span className="text-rose-500">*</span></label>
+                                    <input
+                                        required
+                                        minLength={8}
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        className="min-h-12 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] px-4 text-sm font-bold text-[var(--color-text)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-border)]"
+                                        placeholder="VD: Nhắc lịch học và bài chuẩn bị"
+                                    />
+                                    <p className="mt-1 text-xs font-semibold text-[var(--color-text-muted)]">Nên bắt đầu bằng hành động: Nhắc, Cập nhật, Yêu cầu, Thông báo.</p>
                                 </div>
 
                                 <div>
-                                    <label className="mb-2 block text-sm font-black text-[var(--color-text)]">Lớp học</label>
+                                    <label className="mb-2 block text-sm font-black text-[var(--color-text)]">Dành cho <span className="text-rose-500">*</span></label>
                                     <select
-                                        value={classId}
-                                        onChange={(e) => setClassId(Number(e.target.value))}
-                                        disabled={targetType === 'all'}
-                                        className="min-h-12 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] px-4 text-sm font-bold text-[var(--color-text)] outline-none transition disabled:cursor-not-allowed disabled:opacity-55 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-border)]"
+                                        value={targetType === 'all' ? 'all' : classId || 0}
+                                        onChange={(e) => handleRecipientChange(e.target.value)}
+                                        className="min-h-12 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] px-4 text-sm font-bold text-[var(--color-text)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary-border)]"
                                     >
-                                        {classes.length === 0 ? <option value={0}>Chưa có lớp</option> : null}
+                                        {canUseGlobalTarget && <option value="all">Toàn hệ thống</option>}
+                                        <option value={0} disabled>Chọn lớp học</option>
                                         {classes.map((cls) => (
                                             <option key={cls.id} value={cls.id}>{cls.name} · {cls.code}</option>
                                         ))}
                                     </select>
+                                    <p className="mt-1 text-xs font-semibold text-[var(--color-text-muted)]">Giáo viên chỉ đăng cho lớp mình phụ trách.</p>
                                 </div>
+                            </div>
+
+                            <div>
+                                <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+                                    <label className="block text-sm font-black text-[var(--color-text)]">Nội dung thông báo <span className="text-rose-500">*</span></label>
+                                    <span className={`text-xs font-black ${plainContent.length >= 20 ? 'text-emerald-600' : 'text-[var(--color-text-muted)]'}`}>{plainContent.length}/20 ký tự</span>
+                                </div>
+                                <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] transition focus-within:border-[var(--color-primary)] focus-within:ring-2 focus-within:ring-[var(--color-primary-border)]">
+                                    <div className="flex flex-wrap gap-2 border-b border-[var(--color-border)] bg-[var(--color-card)] p-2">
+                                        {[
+                                            { command: 'bold', label: 'B', title: 'In đậm' },
+                                            { command: 'italic', label: 'I', title: 'In nghiêng' },
+                                            { command: 'underline', label: 'U', title: 'Gạch chân' },
+                                            { command: 'insertUnorderedList', label: '• Danh sách', title: 'Danh sách gạch đầu dòng' },
+                                        ].map((button) => (
+                                            <button
+                                                key={button.command}
+                                                type="button"
+                                                title={button.title}
+                                                onMouseDown={(event) => event.preventDefault()}
+                                                onClick={() => runEditorCommand(button.command as 'bold' | 'italic' | 'underline' | 'insertUnorderedList')}
+                                                className="min-h-9 rounded-xl px-3 text-xs font-black text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary)]"
+                                            >
+                                                <span className={button.command === 'italic' ? 'italic' : button.command === 'underline' ? 'underline' : button.command === 'bold' ? 'font-black' : ''}>{button.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div
+                                        ref={editorRef}
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onInput={() => setContentHtml(editorRef.current?.innerHTML || '')}
+                                        className="min-h-44 w-full p-4 text-sm font-medium leading-7 text-[var(--color-text)] outline-none empty:before:text-[var(--color-text-muted)]"
+                                        data-placeholder="Nhập nội dung rõ ràng: ai cần làm gì, thời hạn nào, phản hồi ở đâu..."
+                                        dangerouslySetInnerHTML={{ __html: contentHtml }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="text-sm font-black text-[var(--color-text)]">Tệp đính kèm</p>
+                                        <p className="mt-1 text-xs font-semibold text-[var(--color-text-muted)]">Lưu trực tiếp vào cơ sở dữ liệu, tối đa {MAX_NOTIFICATION_ATTACHMENTS} tệp, mỗi tệp {formatFileSize(MAX_NOTIFICATION_ATTACHMENT_SIZE)}.</p>
+                                    </div>
+                                    <label className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[var(--color-primary)] px-4 text-sm font-black text-white shadow-lg shadow-red-900/15 transition hover:bg-[var(--color-primary-hover)]">
+                                        <UploadIcon size={17} /> Tải tệp lên
+                                        <input type="file" multiple className="hidden" onChange={handleFiles} />
+                                    </label>
+                                </div>
+                                {attachments.length > 0 && (
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                        {attachments.map((attachment, index) => (
+                                            <div key={attachment.id || `${attachment.name}-${index}`} className="flex min-w-0 items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-3">
+                                                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+                                                    <UploadIcon size={17} />
+                                                </span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block truncate text-xs font-black text-[var(--color-text)]">{attachment.name}</span>
+                                                    <span className="text-[11px] font-bold text-[var(--color-text-muted)]">{formatFileSize(attachment.size)}</span>
+                                                </span>
+                                                <button type="button" onClick={() => removeAttachment(index)} className="rounded-xl px-2 py-1 text-[11px] font-black text-rose-600 transition hover:bg-rose-50">Xóa</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -615,7 +734,8 @@ function PostNotificationModal({
                             <div className={`rounded-2xl border p-4 ${selectedPriority.tone}`}>
                                 <p className="text-xs font-extrabold uppercase tracking-[0.12em] opacity-80">Xem trước</p>
                                 <h3 className="mt-2 line-clamp-2 text-sm font-black">{title || 'Tiêu đề thông báo'}</h3>
-                                <p className="mt-2 line-clamp-4 text-xs font-semibold leading-5 opacity-80">{content || 'Nội dung thông báo sẽ hiển thị tại đây.'}</p>
+                                <p className="mt-2 line-clamp-4 text-xs font-semibold leading-5 opacity-80">{plainContent || 'Nội dung thông báo sẽ hiển thị tại đây.'}</p>
+                                {attachments.length > 0 && <p className="mt-3 text-xs font-black opacity-90">📎 {attachments.length} tệp đính kèm</p>}
                             </div>
                         </aside>
                     </div>
@@ -641,7 +761,7 @@ function PostNotificationModal({
                     <div className="sticky bottom-0 -mx-5 mt-6 flex flex-col-reverse gap-3 border-t border-[var(--color-border)] bg-[var(--color-card)] px-5 py-4 sm:-mx-6 sm:flex-row sm:justify-end sm:px-6">
                         <button type="button" onClick={onClose} className="min-h-12 rounded-2xl px-5 text-sm font-black text-[var(--color-text-secondary)] transition hover:bg-[var(--color-bg-soft)]">Hủy</button>
                         <PrimaryButton disabled={loading || !canSubmit} type="submit" className="min-h-12 rounded-2xl px-6 text-sm font-black">
-                            {loading ? 'Đang gửi...' : 'Đăng thông báo'}
+                            {loading ? 'Đang gửi...' : 'Đăng lên'}
                         </PrimaryButton>
                     </div>
                 </form>

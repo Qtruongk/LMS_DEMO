@@ -1,8 +1,10 @@
 import { memo, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarIcon, MessageIcon, SearchIcon, XIcon } from '../../../components/shared/icons';
 import type { ClassItem, NotificationItem } from '../../../types';
 import { API_URL } from '../../../services/api';
+import { NotificationAttachmentList, RichNotificationContent, getNotificationAttachments, stripHtml } from './notificationContent';
 
 type StudentAnnouncementsProps = {
     classes: ClassItem[];
@@ -58,6 +60,16 @@ function getNotificationType(item: NotificationItem) {
     return (item.type || (item.class_id ? 'class' : 'general')).toLowerCase() === 'class' ? 'class' : 'system';
 }
 
+function readStoredIds(key: string) {
+    try {
+        const value = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(value) ? value.filter((item): item is number => Number.isInteger(item)) : [];
+    } catch {
+        localStorage.removeItem(key);
+        return [];
+    }
+}
+
 function formatDateTime(value: string) {
     return new Date(value).toLocaleString('vi-VN', {
         hour: '2-digit',
@@ -85,19 +97,19 @@ export const StudentAnnouncements = memo(function StudentAnnouncements({ userId 
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState<StudentFilter>('all');
     const [selected, setSelected] = useState<NotificationItem | null>(null);
-    const [readIds, setReadIds] = useState<number[]>(() => {
-        const saved = localStorage.getItem(`vat_student_read_notifications_${userId}`);
-        return saved ? JSON.parse(saved) : [];
-    });
-    const [likedIds, setLikedIds] = useState<number[]>(() => {
-        const saved = localStorage.getItem(`vat_student_liked_notifications_${userId}`);
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [readIds, setReadIds] = useState<number[]>(() => readStoredIds(`vat_student_read_notifications_${userId}`));
+    const [likedIds, setLikedIds] = useState<number[]>(() => readStoredIds(`vat_student_liked_notifications_${userId}`));
     const [quickReply, setQuickReply] = useState<QuickReply>({
         mood: 'Em đã hiểu nội dung',
         message: quickReplyTemplates[0],
     });
     const [sentReply, setSentReply] = useState('');
+
+    useEffect(() => {
+        setReadIds(readStoredIds(`vat_student_read_notifications_${userId}`));
+        setLikedIds(readStoredIds(`vat_student_liked_notifications_${userId}`));
+        setSelected(null);
+    }, [userId]);
 
     useEffect(() => {
         localStorage.setItem(`vat_student_read_notifications_${userId}`, JSON.stringify(readIds));
@@ -115,9 +127,13 @@ export const StudentAnnouncements = memo(function StudentAnnouncements({ userId 
                     headers: { 'x-user-id': String(userId), 'x-user-role': 'student' },
                 });
                 const data = await res.json();
-                setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+                if (!res.ok) throw new Error(data.message || 'Không thể tải thông báo');
+                const items = Array.isArray(data.notifications) ? data.notifications : [];
+                setNotifications(items);
+                setReadIds((current) => Array.from(new Set([...current, ...items.filter((item: NotificationItem) => item.is_read).map((item: NotificationItem) => item.id)])));
             } catch (err) {
                 console.error('Lỗi tải thông báo học sinh:', err);
+                setNotifications([]);
             } finally {
                 setLoading(false);
             }
@@ -151,7 +167,7 @@ export const StudentAnnouncements = memo(function StudentAnnouncements({ userId 
                 (filter === 'urgent' && priority === 'urgent') ||
                 (filter === 'class' && type === 'class') ||
                 (filter === 'system' && type === 'system');
-            const matchesSearch = !query || [item.title, item.content, item.class_name, item.created_by_name, item.sender_name]
+            const matchesSearch = !query || [item.title, stripHtml(item.content_html) || item.content, item.class_name, item.created_by_name, item.sender_name]
                 .filter(Boolean)
                 .some((value) => String(value).toLowerCase().includes(query));
             return matchesFilter && matchesSearch;
@@ -164,11 +180,19 @@ export const StudentAnnouncements = memo(function StudentAnnouncements({ userId 
         setQuickReply({ mood: 'Em đã hiểu nội dung', message: quickReplyTemplates[0] });
         if (!readIds.includes(item.id)) {
             setReadIds((prev) => [...prev, item.id]);
+            fetch(`${API_URL}/api/notifications/${item.id}/read`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+            }).catch((error) => console.error('Lỗi đánh dấu thông báo đã đọc:', error));
         }
     };
 
     const markAllRead = () => {
         setReadIds((prev) => Array.from(new Set([...prev, ...notifications.map((item) => item.id)])));
+        fetch(`${API_URL}/api/notifications/read-all`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+        }).catch((error) => console.error('Lỗi đánh dấu tất cả thông báo:', error));
     };
 
     const toggleLike = (id: number) => {
@@ -235,6 +259,8 @@ export const StudentAnnouncements = memo(function StudentAnnouncements({ userId 
                         const type = getNotificationType(item);
                         const isLiked = likedIds.includes(item.id);
 
+                        const attachments = getNotificationAttachments(item);
+
                         return (
                             <motion.article
                                 key={item.id}
@@ -255,26 +281,27 @@ export const StudentAnnouncements = memo(function StudentAnnouncements({ userId 
                                             : 'linear-gradient(135deg, #f0f9ff 0%, #ffffff 52%, #eef2ff 100%)',
                                 }}
                             >
-                                <div className="flex items-start gap-3">
-                                    <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-xl ring-1 ring-slate-200 shadow-sm">
+                                <div className="flex items-start gap-2.5 sm:gap-3">
+                                    <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-lg ring-1 ring-slate-200 shadow-sm sm:h-12 sm:w-12 sm:text-xl">
                                         {meta.icon}
                                         {isUnread && <span className={`absolute -right-1 -top-1 h-3 w-3 rounded-full shadow-lg ${meta.dot}`} />}
                                     </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-2">
+                                    <div className="min-w-0 flex-1 pt-0.5">
+                                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                             <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ring-1 ${meta.badge}`}>{meta.label}</span>
                                             <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200">
                                                 {type === 'class' ? item.class_name || 'Lớp học' : 'Hệ thống'}
                                             </span>
                                         </div>
-                                        <h3 className="mt-3 line-clamp-2 text-base font-black leading-6 text-slate-950">{item.title}</h3>
-                                        <p className="mt-2 line-clamp-3 text-sm font-semibold leading-6 text-slate-600">{item.content}</p>
+                                        <h3 className="mt-2 line-clamp-2 text-base font-black leading-6 text-slate-950 sm:mt-3">{item.title}</h3>
+                                        <RichNotificationContent html={item.content_html} fallback={item.content} className="mt-1.5 line-clamp-3 text-slate-600 sm:mt-2" />
+                                        {attachments.length > 0 && <p className="mt-2 text-xs font-black text-sky-700 sm:mt-3">📎 {attachments.length} tệp đính kèm</p>}
                                     </div>
                                 </div>
 
                                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-3">
-                                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
-                                        <span className="inline-flex items-center gap-1"><CalendarIcon size={13} /> {relativeTime(item.created_at)}</span>
+                                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500 sm:gap-2">
+                                        <span className="inline-flex items-center gap-1.5"><CalendarIcon size={13} /> {relativeTime(item.created_at)}</span>
                                         <span>•</span>
                                         <span>{item.created_by_name || item.sender_name || 'Trung tâm'}</span>
                                     </div>
@@ -303,9 +330,6 @@ export const StudentAnnouncements = memo(function StudentAnnouncements({ userId 
                 <div className="rounded-[2rem] border border-dashed border-[var(--color-border)] bg-[var(--color-card)] p-8 text-center shadow-sm">
                     <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-[var(--color-primary-soft)] text-3xl">📭</div>
                     <h3 className="mt-4 text-lg font-black text-[var(--color-text)]">Chưa có thông báo phù hợp</h3>
-                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--color-text-secondary)]">
-                        Thử đổi bộ lọc hoặc xoá từ khoá tìm kiếm để xem toàn bộ thông báo của bạn.
-                    </p>
                 </div>
             )}
 
@@ -330,9 +354,9 @@ export const StudentAnnouncements = memo(function StudentAnnouncements({ userId 
 function SkeletonCard() {
     return (
         <div className="animate-pulse rounded-[1.75rem] border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-sm">
-            <div className="flex gap-3">
-                <div className="h-12 w-12 rounded-2xl bg-[var(--color-bg-soft)]" />
-                <div className="flex-1">
+            <div className="flex gap-2.5 sm:gap-3">
+                <div className="h-11 w-11 rounded-2xl bg-[var(--color-bg-soft)] sm:h-12 sm:w-12" />
+                <div className="flex-1 pt-0.5">
                     <div className="h-4 w-32 rounded-full bg-[var(--color-bg-soft)]" />
                     <div className="mt-4 h-5 w-2/3 rounded-full bg-[var(--color-bg-soft)]" />
                     <div className="mt-3 h-4 w-full rounded-full bg-[var(--color-bg-soft)]" />
@@ -365,16 +389,17 @@ function NotificationDetailModal({
     const priority = normalizePriority(item.priority);
     const meta = priorityMeta[priority];
     const type = getNotificationType(item);
+    const attachments = getNotificationAttachments(item);
 
-    return (
-        <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/55 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" role="dialog" aria-modal="true">
+    return createPortal(
+        <div className="fixed inset-0 z-[200] grid place-items-end bg-slate-950/55 p-0 backdrop-blur-sm sm:place-items-center sm:p-4" role="dialog" aria-modal="true">
             <motion.div
                 initial={{ opacity: 0, y: 24, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 24, scale: 0.98 }}
                 className="max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-2xl sm:max-w-3xl sm:rounded-[2rem] sm:p-6"
             >
-                <div className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] pb-4">
+                <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border)] pb-4">
                     <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                             <span className={`rounded-full px-3 py-1 text-[11px] font-black ring-1 ${meta.badge}`}>{meta.icon} {meta.label}</span>
@@ -401,8 +426,15 @@ function NotificationDetailModal({
                     <div className="space-y-4">
                         <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4">
                             <b className="text-sm text-[var(--color-text)]">Nội dung thông báo</b>
-                            <p className="mt-3 whitespace-pre-wrap text-sm font-medium leading-7 text-[var(--color-text-secondary)]">{item.content}</p>
+                            <RichNotificationContent html={item.content_html} fallback={item.content} className="mt-3 leading-7" />
                         </div>
+
+                        {attachments.length > 0 && (
+                            <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4">
+                                <b className="text-sm text-[var(--color-text)]">Tệp đính kèm</b>
+                                <NotificationAttachmentList attachments={attachments} className="mt-3" />
+                            </div>
+                        )}
 
                         <div className="rounded-3xl border border-blue-200 bg-blue-50 p-4 text-blue-950 dark:border-blue-900/70 dark:bg-blue-950/40 dark:text-blue-100">
                             <b className="text-sm">Phản hồi nhanh có sẵn dữ liệu</b>
@@ -459,13 +491,14 @@ function NotificationDetailModal({
                         <button
                             type="button"
                             onClick={onSendReply}
-                            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[var(--color-primary)] text-sm font-black text-white transition hover:bg-[var(--color-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-card)]"
+                            className="inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-2xl bg-[var(--color-primary)] text-sm font-black text-white transition hover:bg-[var(--color-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-card)]"
                         >
                             <MessageIcon size={16} /> Gửi phản hồi mẫu
                         </button>
                     </aside>
                 </div>
             </motion.div>
-        </div>
+        </div>,
+        document.body,
     );
 }

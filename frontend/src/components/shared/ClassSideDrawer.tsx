@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { XIcon, UsersIcon, CheckIcon, FileIcon, CalendarIcon, BellIcon } from './icons';
+import { XIcon, UsersIcon, CheckIcon, FileIcon, CalendarIcon, BellIcon, BookIcon, AlertCircleIcon } from './icons';
 import type { ClassItem, User, Material, SessionItem } from '../../types';
 import { API_URL } from '../../services/api';
+import { ClassTrackingPanel } from '../../features/classes/components/ClassTrackingPanel';
+import { AttendancePanel } from '../../features/classes/components/AttendancePanel';
+import { ClassAttentionTab } from '../../features/classes/components/ClassAttentionTab';
+import { StudentProfileModal } from './StudentProfileModal';
+import { formatStudentName, compareStudentNames } from '../../utils/format';
 
 type ClassSideDrawerProps = {
     classItem: ClassItem | null;
@@ -12,11 +17,12 @@ type ClassSideDrawerProps = {
 };
 
 export function ClassSideDrawer({ classItem, onClose, user, onOpenModule }: ClassSideDrawerProps) {
-    const [activeTab, setActiveTab] = useState<'students' | 'attendance' | 'materials' | 'timeline' | 'announcements'>('students');
+    const [activeTab, setActiveTab] = useState<'students' | 'attendance' | 'homework' | 'attention' | 'scores' | 'materials' | 'timeline' | 'announcements'>('students');
     const [students, setStudents] = useState<User[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
     const [sessions, setSessions] = useState<SessionItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [profileId, setProfileId] = useState<number | null>(null);
 
     useEffect(() => {
         if (!classItem) return;
@@ -42,7 +48,7 @@ export function ClassSideDrawer({ classItem, onClose, user, onOpenModule }: Clas
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs" onClick={onClose}>
+            <div key="drawer-backdrop" className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs" onClick={onClose}>
                 <motion.div
                     initial={{ x: '100%' }}
                     animate={{ x: 0 }}
@@ -53,7 +59,7 @@ export function ClassSideDrawer({ classItem, onClose, user, onOpenModule }: Clas
                 >
                     {/* Drawer Header */}
                     <div className="border-b border-[var(--color-primary-border)] bg-[linear-gradient(135deg,var(--color-primary-soft),var(--color-card))] p-6">
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center justify-between gap-4">
                             <div>
                                 <span className="mb-2 inline-block rounded-full border border-[var(--color-primary-border)] bg-[var(--color-card)] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[var(--color-primary-text)]">
                                     {classItem.subject} • Mã: {classItem.code}
@@ -76,6 +82,9 @@ export function ClassSideDrawer({ classItem, onClose, user, onOpenModule }: Clas
                             {[
                                 { id: 'students', label: 'Học sinh', icon: <UsersIcon size={14} />, count: students.length },
                                 { id: 'attendance', label: 'Điểm danh', icon: <CheckIcon size={14} /> },
+                                { id: 'homework', label: 'Bài tập về nhà', icon: <BookIcon size={14} /> },
+                                { id: 'attention', label: 'Lưu ý', icon: <AlertCircleIcon size={14} /> },
+                                { id: 'scores', label: 'Điểm kiểm tra', icon: <FileIcon size={14} /> },
                                 { id: 'materials', label: 'Tài liệu', icon: <FileIcon size={14} />, count: materials.length },
                                 { id: 'timeline', label: 'Timeline', icon: <CalendarIcon size={14} />, count: sessions.length },
                                 { id: 'announcements', label: 'Thông báo', icon: <BellIcon size={14} /> },
@@ -83,7 +92,7 @@ export function ClassSideDrawer({ classItem, onClose, user, onOpenModule }: Clas
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition ${activeTab === tab.id
+                                    className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition cursor-pointer ${activeTab === tab.id
                                             ? 'bg-[var(--color-primary)] text-white shadow-xs'
                                             : 'bg-[var(--color-card)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
                                         }`}
@@ -120,37 +129,42 @@ export function ClassSideDrawer({ classItem, onClose, user, onOpenModule }: Clas
                                 {students.length === 0 ? (
                                     <p className="text-xs text-[var(--color-text-muted)] py-4 text-center">Chưa có học sinh nào trong lớp này.</p>
                                 ) : (
-                                    students.map((st, i) => (
-                                        <div key={st.id || i} className="flex items-center justify-between rounded-xl border border-[var(--color-border)] p-3 bg-[var(--color-card)]">
+                                    [...students].sort((a, b) => compareStudentNames(a.full_name, b.full_name)).map((st, i) => (
+                                        <button
+                                            type="button"
+                                            key={st.id || i}
+                                            onClick={() => st.id && setProfileId(st.id)}
+                                            className="group flex w-full items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-3 text-left transition hover:border-[var(--color-primary-border)] hover:shadow-sm"
+                                        >
                                             <div className="flex items-center gap-3">
                                                 <div className="grid h-8 w-8 place-items-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)] text-xs font-bold">
                                                     {(st.full_name || st.username || 'H').charAt(0).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <b className="block text-xs text-[var(--color-text)]">{st.full_name || st.username}</b>
+                                                    <b className="block text-xs text-[var(--color-text)] group-hover:text-[var(--color-primary)]">{formatStudentName(st.full_name || st.username)}</b>
                                                     <span className="text-[11px] text-[var(--color-text-muted)]">Mã SV: {st.student_code || 'N/A'} • {st.phone || 'Chưa có SĐT'}</span>
                                                 </div>
                                             </div>
                                             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">Đang học</span>
-                                        </div>
+                                        </button>
                                     ))
                                 )}
                             </div>
                         ) : activeTab === 'attendance' ? (
                             <div className="grid gap-4">
-                                <div className="p-4 rounded-2xl bg-[var(--color-bg-soft)] border border-[var(--color-border)] text-center">
-                                    <h4 className="text-sm font-bold text-[var(--color-text)] mb-1">Điểm danh nhanh hôm nay</h4>
-                                    <p className="text-xs text-[var(--color-text-secondary)] mb-4">Lớp {classItem.name} hiện có {students.length} học viên</p>
-                                    {onOpenModule && (
-                                        <button
-                                            onClick={() => { onOpenModule('attendance', classItem.id); onClose(); }}
-                                            className="inline-flex items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:opacity-90 transition"
-                                        >
-                                            <CheckIcon size={16} /> Mở Trang Điểm Danh Siêu Tốc →
-                                        </button>
-                                    )}
-                                </div>
+                                <AttendancePanel
+                                    user={user}
+                                    classes={[classItem]}
+                                    selectedClassId={classItem.id}
+                                    setSelectedClassId={() => {}}
+                                    embedded
+                                    hideNote={true}
+                                />
                             </div>
+                        ) : activeTab === 'attention' ? (
+                            <ClassAttentionTab classId={classItem.id} userId={user.id} className={classItem.name} />
+                        ) : activeTab === 'scores' || activeTab === 'homework' ? (
+                            <ClassTrackingPanel classId={classItem.id} userId={user.id} mode={activeTab} className={classItem.name} />
                         ) : activeTab === 'materials' ? (
                             <div className="grid gap-3">
                                 <div className="flex items-center justify-between mb-2">
@@ -223,6 +237,7 @@ export function ClassSideDrawer({ classItem, onClose, user, onOpenModule }: Clas
                     </div>
                 </motion.div>
             </div>
+            <StudentProfileModal key="profile-modal" studentId={profileId} viewerId={user.id} onClose={() => setProfileId(null)} />
         </AnimatePresence>
     );
 }

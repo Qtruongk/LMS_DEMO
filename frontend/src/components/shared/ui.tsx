@@ -66,12 +66,12 @@ export const Panel = memo(function Panel({ title, subtitle, action, children, cl
             className={`overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xs transition duration-200 hover:-translate-y-0.5 hover:border-[var(--color-primary-border)] hover:shadow-md ${className}`}
         >
             {(title || subtitle || action) && (
-                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--color-border)] px-5 py-4 sm:px-6">
-                    <div className="min-w-0 flex-1">
-                        {title && <h2 className="truncate text-[15px] font-semibold tracking-[-0.01em] text-[var(--color-text)]">{title}</h2>}
-                        {subtitle && <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--color-text-secondary)]">{subtitle}</p>}
+                <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border)] px-5 min-h-[60px] sm:px-6">
+                    <div className="min-w-0 flex-1 flex flex-col justify-center">
+                        {title && <h2 className="truncate text-base font-bold tracking-[-0.01em] text-[var(--color-text)] leading-none my-auto">{title}</h2>}
+                        {subtitle && <p className="mt-1.5 max-w-3xl text-sm leading-5 text-[var(--color-text-secondary)]">{subtitle}</p>}
                     </div>
-                    {action && <div className="shrink-0">{action}</div>}
+                    {action && <div className="shrink-0 flex items-center">{action}</div>}
                 </div>
             )}
             <div className={noPadding ? '' : 'p-5 sm:p-6'}>

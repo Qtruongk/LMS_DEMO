@@ -12,7 +12,7 @@ export function TuitionList({ tuitions, user }: { tuitions: Tuition[], user?: Us
     return (
         <Panel
             title="Học phí"
-            subtitle={`${tuitions.length} bản ghi`}
+           
             action={
                 <GhostButton>
                     <DownloadIcon size={16} />

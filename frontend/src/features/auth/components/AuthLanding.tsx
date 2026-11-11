@@ -15,6 +15,7 @@ type Props = {
     setShowLogin: (value: boolean) => void;
     setLoginForm: (value: { username: string; password: string }) => void;
     onLogin: (event: FormEvent) => void;
+    onOpenSelfService: () => void;
 };
 
 type LandingPopup = 'login' | 'demo' | 'support' | null;
@@ -35,7 +36,7 @@ const demoAccounts = [
     { role: 'Quản trị', username: 'admin', password: 'admin123', note: 'Điều phối hệ thống VAT LMS' },
 ];
 
-export function AuthLanding({ showLogin, message, loginForm, setShowLogin, setLoginForm, onLogin }: Props) {
+export function AuthLanding({ showLogin, message, loginForm, setShowLogin, setLoginForm, onLogin, onOpenSelfService }: Props) {
     const [popup, setPopup] = useState<LandingPopup>(showLogin ? 'login' : null);
     const [supportName, setSupportName] = useState('Học viên lớp Điện Ô tô B1');
     const [supportPhone, setSupportPhone] = useState('0961001001');
@@ -174,7 +175,7 @@ export function AuthLanding({ showLogin, message, loginForm, setShowLogin, setLo
                 {popup && (
                     <motion.div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                         <motion.div role="dialog" aria-modal="true" className="max-h-[92vh] w-full overflow-y-auto rounded-t-[30px] border border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-950 sm:max-w-lg sm:rounded-[30px] sm:p-6" initial={{ y: 42, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 24, opacity: 0, scale: 0.98 }}>
-                            <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-3">
                                     <img src={vatLogo} alt="VAT" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-red-100" />
                                     <div>
@@ -200,6 +201,9 @@ export function AuthLanding({ showLogin, message, loginForm, setShowLogin, setLo
                                             {message}
                                         </p>
                                     )}
+                                    <button type="button" onClick={onOpenSelfService} className="text-left text-sm font-black text-red-900 transition hover:text-red-700 dark:text-red-200 dark:hover:text-red-100">
+                                        Quên mật khẩu?
+                                    </button>
                                     <PrimaryButton type="submit" size="lg" className="min-h-12 text-base">Đăng nhập</PrimaryButton>
                                 </form>
                             )}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Panel, PrimaryButton } from '../../../components/shared/ui';
 import { ClockIcon, PlayIcon } from '../../../components/shared/icons';
 import { ExamBadgeIcon, LayersIcon } from './ExamIcons';
@@ -12,19 +12,67 @@ import { API_URL } from '../../../services/api';
 type OnlineExamsMainProps = {
     user: User;
     classes: ClassItem[];
-    initialTab?: 'exams' | 'results';
-    hideStudentHeader?: boolean;
+    selectedClassId?: number | null;
 };
 
-export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStudentHeader = false }: OnlineExamsMainProps) {
+type StudentExamFilter = 'all' | 'done' | 'not_done' | 'in_progress' | 'overdue';
+type StudentExamState = 'done' | 'not_done' | 'in_progress' | 'overdue';
+
+const examFilterLabels: Record<StudentExamFilter, string> = {
+    all: 'Tất cả',
+    done: 'Đã làm',
+    not_done: 'Chưa làm',
+    in_progress: 'Đang làm',
+    overdue: 'Trễ hạn',
+};
+
+const examStateLabels: Record<StudentExamState, string> = {
+    done: 'Đã làm',
+    not_done: 'Chưa làm',
+    in_progress: 'Đang làm',
+    overdue: 'Trễ hạn',
+};
+
+const examStateTone: Record<StudentExamState, string> = {
+    done: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200',
+    not_done: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200',
+    in_progress: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200',
+    overdue: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200',
+};
+
+function getExamDeadline(exam: OnlineExam) {
+    const value = exam.due_time || exam.end_time;
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getStudentExamState(exam: OnlineExam, result?: ExamSubmission): StudentExamState {
+    const status = result?.status || exam.submission_status;
+    const isDone = Boolean(exam.has_submitted) || status === 'graded' || status === 'pending_essay';
+    if (isDone) return 'done';
+    if (status === 'in_progress') return 'in_progress';
+    const deadline = getExamDeadline(exam);
+    if (deadline && deadline.getTime() < Date.now()) return 'overdue';
+    return 'not_done';
+}
+
+function formatExamDate(value?: string) {
+    if (!value) return 'Chưa cập nhật';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Chưa cập nhật';
+    return date.toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+export function OnlineExamsMain({ user, classes, selectedClassId }: OnlineExamsMainProps) {
     const isStudent = user.role === 'student';
     const canManage = user.role === 'admin' || user.role === 'owner' || user.role === 'teacher';
 
-    const [activeTab, setActiveTab] = useState<'exams' | 'results'>(initialTab);
     const [exams, setExams] = useState<OnlineExam[]>([]);
     const [studentResults, setStudentResults] = useState<ExamSubmission[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [alertMsg, setAlertMsg] = useState<string>('');
+    const [studentFilter, setStudentFilter] = useState<StudentExamFilter>('all');
 
     // Active Exam Taking Session for Student
     const [takingExam, setTakingExam] = useState<{
@@ -62,10 +110,6 @@ export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStude
             console.error('Lỗi tải kết quả bài thi:', err);
         }
     }, [user.id]);
-
-    useEffect(() => {
-        setActiveTab(initialTab);
-    }, [initialTab]);
 
     useEffect(() => {
         loadExams();
@@ -120,7 +164,8 @@ export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStude
         subId: number,
         essayScores: Record<number, { score: number; feedback: string }>,
         feedback: string,
-        totalScore: number
+        totalScore: number,
+        gradeDetails?: Record<string, { label: string; score: number; max_score?: number }>
     ) => {
         const res = await fetch(`${API_URL}/api/online-exams/submissions/${subId}/grade`, {
             method: 'PUT',
@@ -129,6 +174,7 @@ export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStude
                 essay_scores: essayScores,
                 teacher_feedback: feedback,
                 total_score: totalScore,
+                grade_details: gradeDetails,
             }),
         });
         const data = await res.json();
@@ -145,14 +191,14 @@ export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStude
     // Student Exam Taking Callbacks
     const handleStartExamAttempt = async (exam: OnlineExam) => {
         try {
-            const resDetails = await fetch(`${API_URL}/api/online-exams/${exam.id}`, { headers });
-            const detailsData = await resDetails.json();
-
             const resStart = await fetch(`${API_URL}/api/online-exams/${exam.id}/start`, {
                 method: 'POST',
                 headers,
             });
             const startData = await resStart.json();
+
+            const resDetails = await fetch(`${API_URL}/api/online-exams/${exam.id}`, { headers });
+            const detailsData = await resDetails.json();
 
             if (!resStart.ok) {
                 alert(startData.message || 'Không thể vào bài thi');
@@ -204,7 +250,26 @@ export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStude
         );
     }
 
-    const visibleStudentExams = exams;
+    const resultByExamId = useMemo(() => {
+        const map = new Map<number, ExamSubmission>();
+        studentResults.forEach((result) => map.set(result.exam_id, result));
+        return map;
+    }, [studentResults]);
+
+    const examStats = useMemo(() => {
+        const stats: Record<StudentExamFilter, number> = { all: exams.length, done: 0, not_done: 0, in_progress: 0, overdue: 0 };
+        exams.forEach((exam) => {
+            const state = getStudentExamState(exam, resultByExamId.get(exam.id));
+            stats[state] += 1;
+        });
+        return stats;
+    }, [exams, resultByExamId]);
+
+    const visibleStudentExams = useMemo(() => exams.filter((exam) => {
+        if (studentFilter === 'all') return true;
+        return getStudentExamState(exam, resultByExamId.get(exam.id)) === studentFilter;
+    }), [exams, resultByExamId, studentFilter]);
+
     const visibleResults = studentResults;
 
     // TEACHER / ADMIN WORKSPACE
@@ -213,6 +278,7 @@ export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStude
             <TeacherExamManager
                 exams={exams}
                 classes={classes}
+                selectedClassId={selectedClassId}
                 onCreateExam={handleCreateExam}
                 onUpdateExam={handleUpdateExam}
                 onDeleteExam={handleDeleteExam}
@@ -234,54 +300,53 @@ export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStude
             )}
 
             {/* Student Navigation Bar */}
-            {!hideStudentHeader && (
-                <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-xs">
-                    <div className="flex items-center gap-3">
-                        <span className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-100 text-indigo-700 font-bold text-lg dark:bg-indigo-900/60 dark:text-indigo-200">
-                            <ExamBadgeIcon size={22} />
-                        </span>
-                        <div>
-                            <h2 className="text-lg font-bold text-[var(--color-text)]">Kiểm Tra Trực Tuyến</h2>
-                            <p className="text-xs text-[var(--color-text-secondary)]">Làm bài trực tuyến, tự động lưu 30s, đếm ngược thời gian thực và xem kết quả ngay</p>
-                        </div>
-                    </div>
-
-                    {/* Tab switcher */}
-                    <div className="inline-flex rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-1 gap-1">
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('exams')}
-                            className={`rounded-lg px-4 py-2 text-xs font-bold transition ${activeTab === 'exams' ? 'bg-[var(--color-primary)] text-white shadow-xs' : 'text-[var(--color-text-secondary)]'}`}
-                        >
-                            Đề Thi Hiện Có ({visibleStudentExams.length})
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('results')}
-                            className={`rounded-lg px-4 py-2 text-xs font-bold transition ${activeTab === 'results' ? 'bg-[var(--color-primary)] text-white shadow-xs' : 'text-[var(--color-text-secondary)]'}`}
-                        >
-                            Kết Quả Học Tập ({studentResults.length})
-                        </button>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-xs">
+                <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 place-items-center rounded-2xl bg-indigo-100 text-indigo-700 font-bold text-lg dark:bg-indigo-900/60 dark:text-indigo-200">
+                        <ExamBadgeIcon size={22} />
+                    </span>
+                    <div>
+                        <h2 className="text-lg font-bold text-[var(--color-text)]">Kiểm Tra Trực Tuyến</h2>
                     </div>
                 </div>
-            )}
 
-            {/* Tab 1: Available Exams */}
-            {activeTab === 'exams' && (
-                <Panel title={`Danh Sách Đề Thi Trực Tuyến (${visibleStudentExams.length} bài thi)`} subtitle="Chọn đề thi và bấm Bắt đầu làm bài trong giao diện toàn màn hình thân thiện với học sinh">
-                    {loading ? (
-                        <div className="py-12 text-center text-xs text-[var(--color-text-muted)]">Đang tải danh sách đề thi...</div>
-                    ) : visibleStudentExams.length ? (
-                        <div className="grid gap-4 md:grid-cols-2">
-                            {visibleStudentExams.map((exam) => (
+                <div className="text-right">
+                    <p className="text-sm font-black text-[var(--color-text)]">{studentResults.length} bài đã có kết quả</p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">Kết quả nằm chung trong từng bài kiểm tra</p>
+                </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-3 shadow-xs">
+                {(Object.keys(examFilterLabels) as StudentExamFilter[]).map((filter) => (
+                    <button
+                        key={filter}
+                        type="button"
+                        onClick={() => setStudentFilter(filter)}
+                        className={`rounded-xl px-4 py-2 text-xs font-black transition ${studentFilter === filter ? 'bg-[var(--color-primary)] text-white shadow-xs' : 'bg-[var(--color-bg-soft)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'}`}
+                    >
+                        {examFilterLabels[filter]} ({examStats[filter]})
+                    </button>
+                ))}
+            </div>
+
+            <Panel title={`Bài Kiểm Tra (${visibleStudentExams.length} bài)`}>
+                {loading ? (
+                    <div className="py-12 text-center text-xs text-[var(--color-text-muted)]">Đang tải danh sách đề thi...</div>
+                ) : visibleStudentExams.length ? (
+                    <div className="grid gap-4 md:grid-cols-2">
+                        {visibleStudentExams.map((exam) => {
+                            const result = resultByExamId.get(exam.id);
+                            const state = getStudentExamState(exam, result);
+                            const canStart = state !== 'done' && state !== 'overdue';
+                            return (
                                 <article
                                     key={exam.id}
                                     className="flex flex-col justify-between rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-xs transition hover:border-[var(--color-primary-border)] hover:shadow-md"
                                 >
                                     <div>
                                         <div className="mb-2 flex items-center justify-between gap-2">
-                                            <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-                                                Đang mở đề
+                                            <span className={`rounded-lg px-2.5 py-1 text-[10px] font-bold ${examStateTone[state]}`}>
+                                                {examStateLabels[state]}
                                             </span>
                                             {exam.class_name && (
                                                 <span className="text-[11px] font-semibold text-[var(--color-text-muted)]">
@@ -291,37 +356,41 @@ export function OnlineExamsMain({ user, classes, initialTab = 'exams', hideStude
                                         </div>
 
                                         <h3 className="text-base font-bold text-[var(--color-text)] mb-2 leading-snug">{exam.title}</h3>
-                                        <p className="text-xs text-[var(--color-text-secondary)] mb-4 line-clamp-2">{exam.description || 'Không có mô tả thêm'}</p>
 
                                         <div className="grid grid-cols-2 gap-2 text-[11px] text-[var(--color-text-muted)] mb-4">
                                             <span className="flex items-center gap-1"><ClockIcon size={13} /> Thời lượng: <b>{exam.duration_minutes} phút</b></span>
                                             <span className="flex items-center gap-1"><LayersIcon size={13} /> Số câu: <b>{exam.question_count ?? 0} câu</b></span>
-                                            <span>Tối đa: <b>{exam.max_attempts} lần</b></span>
+                                            <span>Hạn: <b>{formatExamDate(exam.due_time || exam.end_time)}</b></span>
                                             <span>Chế độ: <b>{exam.display_mode === 'one' ? '1 câu/trang' : 'Tất cả câu'}</b></span>
                                         </div>
+
+                                        {result && (
+                                            <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-emerald-100">
+                                                <p className="font-black">Kết quả: {result.total_score ?? '-'} / {result.max_score ?? '-'}</p>
+                                                <p className="mt-1 font-semibold opacity-80">Trạng thái: {result.status === 'graded' ? 'Đã có điểm' : result.status === 'pending_essay' ? 'Chờ chấm tự luận' : 'Đang làm bài'} • Nộp: {formatExamDate(result.submit_time)}</p>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="border-t border-[var(--color-border)] pt-3 flex justify-end">
                                         <PrimaryButton
-                                            onClick={() => handleStartExamAttempt(exam)}
-                                            className="h-10 px-6 text-xs font-bold bg-blue-600 hover:bg-blue-700 inline-flex items-center gap-1.5"
+                                            onClick={() => canStart && handleStartExamAttempt(exam)}
+                                            disabled={!canStart}
+                                            className={`h-10 px-6 text-xs font-bold inline-flex items-center gap-1.5 ${canStart ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-400 cursor-not-allowed'}`}
                                         >
-                                            <PlayIcon size={14} /> Bắt Đầu Làm Bài
+                                            <PlayIcon size={14} /> {state === 'in_progress' ? 'Tiếp Tục Làm Bài' : state === 'done' ? 'Đã Hoàn Thành' : state === 'overdue' ? 'Đã Trễ Hạn' : 'Bắt Đầu Làm Bài'}
                                         </PrimaryButton>
                                     </div>
                                 </article>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-12 text-center text-xs text-[var(--color-text-muted)]">Hiện tại chưa có đề thi trực tuyến nào được phát cho lớp của bạn</div>
-                    )}
-                </Panel>
-            )}
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="py-12 text-center text-xs text-[var(--color-text-muted)]">Hiện tại chưa có đề thi trực tuyến nào được phát cho lớp của bạn</div>
+                )}
+            </Panel>
 
-            {/* Tab 2: History Results */}
-            {activeTab === 'results' && (
-                <ExamResultsView results={visibleResults} />
-            )}
+            {visibleResults.length > 0 && <ExamResultsView results={visibleResults} />}
         </div>
     );
 }

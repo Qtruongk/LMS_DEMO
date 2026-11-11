@@ -16,9 +16,11 @@ import {
 import type { ClassItem, SessionItem, User, WorkspaceSummary } from '../../../types';
 import { ClassSideDrawer } from '../../../components/shared/ClassSideDrawer';
 import { StudentDashboard } from './StudentDashboard';
+import { TeacherDashboard } from './TeacherDashboard';
 import { API_URL } from '../../../services/api';
+import { formatStudentName, compareStudentNames } from '../../../utils/format';
 
-type AttendanceStatus = 'present' | 'late' | 'excused' | 'absent';
+type AttendanceStatus = 'present' | 'late' | 'absent';
 
 type DashboardAttendanceRecord = {
     student_id: number;
@@ -74,7 +76,7 @@ type DashboardProps = {
     user: User;
     summary: WorkspaceSummary;
     classes: ClassItem[];
-    onNavigate?: (module: string) => void;
+    onNavigate?: (module: string, classId?: number) => void;
 };
 
 export const Dashboard = memo(function Dashboard({ user, summary, classes, onNavigate }: DashboardProps) {
@@ -190,12 +192,16 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
         return <StudentDashboard user={user} summary={summary} classes={classes} onNavigate={onNavigate} />;
     }
 
+    if (user.role === 'teacher') {
+        return <TeacherDashboard user={user} summary={summary} classes={classes} onNavigate={onNavigate} />;
+    }
+
     const cards = isAdmin
         ? [
             ['Tổng số lớp học', summary.classes, BookIcon, '+12% so với tháng trước'],
             ['Giáo viên', summary.teachers, UsersIcon, '100% hoạt động'],
             ['Học sinh', summary.students, UsersIcon, '+24 học sinh mới'],
-            ['Cảnh báo học phí', summary.tuition_alerts, WalletIcon, '2 trường hợp cần xử lý'],
+            ['Cảnh báo học phí', summary.tuition_alerts, WalletIcon, Number(summary.tuition_alerts || 0) > 0 ? `${summary.tuition_alerts} trường hợp cần xử lý` : 'Không có cảnh báo'],
         ]
         : [
             ['Lớp phụ trách', summary.my_classes || 4, BookIcon, '+1 lớp kỳ này'],
@@ -207,7 +213,6 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
     const activeClasses = classes.filter((c) => c.status !== 'completed' && c.status !== 'canceled');
 
     const todaySchedule = dashboardSchedule;
-    const pendingAttendance = todaySchedule.find((item) => !item.hasSavedAttendance && item.status === 'completed') ?? todaySchedule.find((item) => !item.hasSavedAttendance) ?? null;
 
     return (
         <div className="grid gap-6">
@@ -231,7 +236,7 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                 <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[var(--color-primary)]/10 blur-2xl" />
                 <div className="absolute bottom-0 left-0 h-1.5 w-full bg-gradient-to-r from-[var(--color-primary)] via-[var(--color-primary-hover)] to-transparent" />
 
-                <div className="relative grid gap-6 p-5 sm:p-7 xl:grid-cols-[1.35fr_0.65fr] xl:items-stretch">
+                <div className="relative grid gap-6 p-5 sm:p-7 xl:grid-cols-[1.35fr_0.65fr] xl:items-center">
                     <div className="flex flex-col justify-between gap-6">
                         <div>
                             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--color-primary-border)] bg-[var(--color-card)]/75 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[var(--color-primary)] shadow-xs backdrop-blur">
@@ -241,73 +246,9 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                             <h1 className="max-w-3xl text-3xl font-black leading-[1.05] tracking-[-0.045em] text-[var(--color-text)] sm:text-5xl">
                                 Xin chào, {user.full_name || user.username}
                             </h1>
-                            <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)] sm:text-base">
-                                Bảng tổng quan được tối ưu theo luồng hành vi: việc cần làm trước, lớp đang dạy tiếp theo và dữ liệu quan trọng được đặt trong vùng mắt dễ quét.
-                            </p>
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-3">
-                            <button
-                                type="button"
-                                onClick={() => handleOpenAttendance()}
-                                className="group min-h-24 rounded-3xl border border-[var(--color-primary-border)] bg-[var(--color-primary)] p-4 text-left text-white shadow-[var(--shadow-primary)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-hover)] active:translate-y-0"
-                            >
-                                <span className="mb-3 grid h-9 w-9 place-items-center rounded-2xl bg-white/18"><CheckIcon size={17} /></span>
-                                <span className="block text-sm font-black">Điểm danh nhanh</span>
-                                <span className="mt-1 block text-xs text-white/80">Mở danh sách có sẵn</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowAnnouncementModal(true)}
-                                className="group min-h-24 rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)]/80 p-4 text-left shadow-xs backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-border)] hover:bg-[var(--color-primary-soft)] active:translate-y-0"
-                            >
-                                <span className="mb-3 grid h-9 w-9 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]"><BellIcon size={17} /></span>
-                                <span className="block text-sm font-black text-[var(--color-text)]">Tạo thông báo</span>
-                                <span className="mt-1 block text-xs text-[var(--color-text-secondary)]">Form đã có dữ liệu mẫu</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowGradingModal(true)}
-                                className="group min-h-24 rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)]/80 p-4 text-left shadow-xs backdrop-blur transition hover:-translate-y-0.5 hover:border-[var(--color-primary-border)] hover:bg-[var(--color-primary-soft)] active:translate-y-0"
-                            >
-                                <span className="mb-3 grid h-9 w-9 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]"><FileIcon size={17} /></span>
-                                <span className="block text-sm font-black text-[var(--color-text)]">Chấm bài nhanh</span>
-                                <span className="mt-1 block text-xs text-[var(--color-text-secondary)]">Xử lý bài ưu tiên</span>
-                            </button>
                         </div>
                     </div>
 
-                    <div className="rounded-[28px] border border-[var(--color-border)] bg-[var(--color-card)]/82 p-4 shadow-sm backdrop-blur">
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                            <div>
-                                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Ca tiếp theo</p>
-                                <h3 className="mt-1 text-lg font-black text-[var(--color-text)]">{todaySchedule[0]?.name}</h3>
-                            </div>
-                            <Badge tone="success">Sẵn sàng</Badge>
-                        </div>
-                        <div className="grid gap-3">
-                            <div className="rounded-2xl bg-[var(--color-bg-soft)] p-3">
-                                <div className="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-                                    <span className="inline-flex items-center gap-1.5"><ClockIcon size={13} /> {todaySchedule[0]?.time}</span>
-                                    <span className="font-bold text-[var(--color-primary)]">{todaySchedule[0]?.room}</span>
-                                </div>
-                                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--color-border)]">
-                                    <div className="h-full w-[72%] rounded-full bg-[var(--color-primary)]" />
-                                </div>
-                                <p className="mt-2 text-[11px] text-[var(--color-text-muted)]">72% nội dung buổi học đã được chuẩn bị</p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="rounded-2xl border border-[var(--color-border)] p-3">
-                                    <p className="text-2xl font-black text-[var(--color-text)]">{summary.students || 128}</p>
-                                    <p className="text-[11px] font-semibold text-[var(--color-text-muted)]">Học viên theo dõi</p>
-                                </div>
-                                <div className="rounded-2xl border border-[var(--color-border)] p-3">
-                                    <p className="text-2xl font-black text-[var(--color-text)]">{summary.pending_grades || 5}</p>
-                                    <p className="text-[11px] font-semibold text-[var(--color-text-muted)]">Bài cần chấm</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </section>
 
@@ -318,7 +259,7 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                         className="group relative overflow-hidden rounded-[26px] border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-xs transition hover:-translate-y-0.5 hover:border-[var(--color-primary-border)] hover:shadow-lg"
                     >
                         <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[var(--color-primary-soft)] opacity-70 transition group-hover:scale-125" />
-                        <div className="relative flex items-start justify-between gap-3">
+                        <div className="relative flex items-center justify-between gap-3">
                             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)] transition group-hover:bg-[var(--color-primary)] group-hover:text-white">
                                 {/* @ts-ignore */}
                                 <Icon size={20} />
@@ -337,7 +278,6 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                 <div className="grid gap-6">
                     <Panel
                         title="Timeline giảng dạy hôm nay"
-                        subtitle="Ưu tiên hành động theo thời gian thực"
                         action={<Button size="sm" onClick={() => onNavigate?.('schedule')}>Xem lịch</Button>}
                     >
                         <div className="relative grid gap-3 before:absolute before:left-5 before:top-5 before:h-[calc(100%-2.5rem)] before:w-px before:bg-[var(--color-border)]">
@@ -369,7 +309,6 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
 
                     <Panel
                         title="Lớp học phụ trách"
-                        subtitle="Thẻ lớp giàu thông tin, dễ chạm trên di động"
                         action={<Button size="sm" onClick={() => onNavigate?.('classes')}>Tất cả lớp</Button>}
                     >
                         <div className="grid gap-4 md:grid-cols-2">
@@ -384,7 +323,6 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                                             <div className="absolute right-4 top-4 rounded-full bg-[var(--color-card)]/80 px-2.5 py-1 text-[10px] font-black text-[var(--color-primary)] shadow-xs">#{index + 1}</div>
                                             <Badge tone="neutral" size="sm">{item.code}</Badge>
                                             <h3 className="mt-3 line-clamp-1 text-lg font-black tracking-[-0.02em] text-[var(--color-text)] group-hover:text-[var(--color-primary)]">{item.name}</h3>
-                                            <p className="mt-1 text-xs font-semibold text-[var(--color-text-secondary)]">{item.subject}</p>
                                         </div>
                                         <div className="grid gap-3 p-4">
                                             <div className="flex items-center justify-between gap-3 text-xs">
@@ -409,49 +347,16 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                 </div>
 
                 <div className="grid gap-6 content-start">
-                    <div className="overflow-hidden rounded-[28px] border border-amber-200 bg-amber-50 shadow-xs dark:border-amber-900/50 dark:bg-amber-950/30">
-                        <div className="p-5">
-                            <div className="mb-4 flex items-start gap-3">
-                                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200"><CheckIcon size={20} /></span>
-                                <div>
-                                    <h3 className="text-base font-black text-amber-950 dark:text-amber-100">Cần hoàn tất điểm danh</h3>
-                                    <p className="mt-1 text-xs leading-5 text-amber-800/80 dark:text-amber-100/75">{pendingAttendance ? <>Ca dạy <b>{pendingAttendance.name}</b> cần chốt sĩ số từ cơ sở dữ liệu.</> : 'Các ca dạy hôm nay đã được đồng bộ điểm danh.'}</p>
-                                </div>
-                            </div>
-                            <PrimaryButton size="sm" onClick={() => handleOpenAttendance(pendingAttendance ?? undefined)} className="w-full" disabled={!todaySchedule.length}>Mở bảng điểm danh</PrimaryButton>
-                        </div>
-                    </div>
 
-                    <Panel title="Bài tập chờ chấm" subtitle="Ưu tiên theo thời điểm nộp" action={<Badge tone="primary">5 bài</Badge>}>
-                        <div className="grid gap-3">
-                            {[
-                                ['Nguyễn Văn An', 'Hình học', 'Nộp lúc 07:45 sáng nay'],
-                                ['Trần Thị Bích', 'Đại số', 'Nộp lúc 22:15 hôm qua'],
-                            ].map(([name, subject, time]) => (
-                                <div key={name} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3">
-                                    <div className="min-w-0">
-                                        <p className="truncate text-xs font-black text-[var(--color-text)]">{name} — {subject}</p>
-                                        <span className="text-[10px] text-[var(--color-text-muted)]">{time}</span>
-                                    </div>
-                                    <Button size="sm" onClick={() => setShowGradingModal(true)}>Chấm</Button>
-                                </div>
-                            ))}
+                    <Panel title="Bài tập chờ chấm" action={<Badge tone="neutral">0 bài</Badge>}>
+                        <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4 text-center text-sm font-semibold text-[var(--color-text-secondary)]">
+                            Chưa có bài tập chờ chấm.
                         </div>
                     </Panel>
 
-                    <Panel title="Thông báo hệ thống" subtitle="Thông tin cần nắm trong ngày">
-                        <div className="grid gap-3">
-                            {[
-                                ['Nhập điểm thi giữa kỳ', 'Hạn cuối nhập điểm thi là ngày 25/10/2026.', '2 giờ trước', true],
-                                ['Cập nhật lịch phòng học A204', 'Phòng A204 đã được bổ sung thiết bị máy chiếu mới.', '1 ngày trước', false],
-                            ].map(([title, desc, time, active]) => (
-                                <div key={title as string} className="relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3 pl-4">
-                                    <span className={`absolute left-0 top-4 h-8 w-1 rounded-r-full ${active ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'}`} />
-                                    <h4 className="text-xs font-black text-[var(--color-text)]">{title as string}</h4>
-                                    <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">{desc as string}</p>
-                                    <span className="mt-2 block text-[10px] font-semibold text-[var(--color-text-muted)]">{time as string}</span>
-                                </div>
-                            ))}
+                    <Panel title="Thông báo hệ thống">
+                        <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4 text-center text-sm font-semibold text-[var(--color-text-secondary)]">
+                            Chưa có thông báo hệ thống.
                         </div>
                     </Panel>
                 </div>
@@ -473,7 +378,6 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                                 </span>
                                 <div>
                                     <h3 className="text-base font-extrabold text-[var(--color-text)]">Điểm danh nhanh: {selectedSchedule?.name || 'Chưa chọn ca dạy'}</h3>
-                                    <p className="text-xs text-[var(--color-text-secondary)]">Ca dạy {selectedSchedule?.time || '--:--'} | Sĩ số: {attendanceList.length}/{selectedSchedule?.studentCount || attendanceList.length} học viên</p>
                                 </div>
                             </div>
                             <button
@@ -486,20 +390,19 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
 
                         {/* Roster Table */}
                         <div className="max-h-[50vh] overflow-y-auto p-6 space-y-3">
-                            {attendanceList.map((st) => (
+                            {[...attendanceList].sort((a, b) => compareStudentNames(a.full_name, b.full_name)).map((st) => (
                                 <div key={st.student_id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
                                     <div>
-                                        <b className="text-sm text-[var(--color-text)]">{st.full_name || st.username}</b>
+                                        <b className="text-sm text-[var(--color-text)]">{formatStudentName(st.full_name || st.username)}</b>
                                         <span className="ml-2 text-xs font-mono text-[var(--color-text-muted)]">({st.student_code || st.username})</span>
                                         {st.note && <p className="text-xs text-amber-600 font-medium mt-0.5">⚠️ {st.note}</p>}
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        {(['present', 'late', 'excused', 'absent'] as const).map((mode) => {
-                                            const labels = { present: 'Có mặt', late: 'Muộn', excused: 'Có phép', absent: 'Vắng' };
+                                        {(['present', 'late', 'absent'] as const).map((mode) => {
+                                            const labels = { present: 'Có mặt', late: 'Muộn', absent: 'Vắng' };
                                             const colors = {
                                                 present: st.status === 'present' ? 'bg-emerald-600 text-white' : 'bg-[var(--color-bg-soft)] text-[var(--color-text-secondary)]',
                                                 late: st.status === 'late' ? 'bg-amber-500 text-white' : 'bg-[var(--color-bg-soft)] text-[var(--color-text-secondary)]',
-                                                excused: st.status === 'excused' ? 'bg-blue-600 text-white' : 'bg-[var(--color-bg-soft)] text-[var(--color-text-secondary)]',
                                                 absent: st.status === 'absent' ? 'bg-rose-600 text-white' : 'bg-[var(--color-bg-soft)] text-[var(--color-text-secondary)]',
                                             };
                                             return (
@@ -556,7 +459,6 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                                 </span>
                                 <div>
                                     <h3 className="text-base font-extrabold text-[var(--color-text)]">Gửi thông báo lớp học</h3>
-                                    <p className="text-xs text-[var(--color-text-secondary)]">Thông báo sẽ được gửi tức thì đến ứng dụng học viên</p>
                                 </div>
                             </div>
                             <button onClick={() => setShowAnnouncementModal(false)} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-bg-soft)]">
@@ -631,11 +533,11 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
 
             {/* ─── MODAL 3: Chấm bài nhanh (Pre-populated Data) ─── */}
             {showGradingModal && (
-                <div className="fixed inset-0 z-[150] grid place-items-center bg-black/60 p-4 backdrop-blur-xs">
+                <div className="fixed inset-0 z-[150] grid place-items-start justify-items-center overflow-y-auto bg-black/60 p-4 pt-8 backdrop-blur-xs">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl"
+                        className="relative w-full max-w-6xl overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl"
                     >
                         <div className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-primary-soft)] px-6 py-4">
                             <div className="flex items-center gap-3">
@@ -643,8 +545,7 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                                     <FileIcon size={18} />
                                 </span>
                                 <div>
-                                    <h3 className="text-base font-extrabold text-[var(--color-text)]">Chấm bài: Nguyễn Văn An (VAT-9021)</h3>
-                                    <p className="text-xs text-[var(--color-text-secondary)]">Bài kiểm tra giữa kỳ môn Hình Học 9</p>
+                                    <h3 className="text-base font-extrabold text-[var(--color-text)]">Chấm bài: {formatStudentName('Nguyễn Văn An')} (VAT-9021)</h3>
                                 </div>
                             </div>
                             <button onClick={() => setShowGradingModal(false)} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-bg-soft)]">
@@ -652,37 +553,68 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-4">
-                            <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3 text-xs">
-                                <div className="flex items-center gap-2">
-                                    <FileIcon size={16} className="text-red-600" />
-                                    <b className="text-[var(--color-text)]">Bai_Lam_Nguyen_Van_An_De2.pdf</b>
+                        <div className="grid max-h-[62vh] gap-0 overflow-y-auto lg:grid-cols-[1.25fr_0.75fr]">
+                            <section className="border-b border-[var(--color-border)] bg-[var(--color-bg-soft)] p-5 lg:border-b-0 lg:border-r">
+                                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-3 text-xs">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <FileIcon size={16} className="shrink-0 text-red-600" />
+                                        <b className="truncate text-[var(--color-text)]">Bai_Lam_Nguyen_Van_An_De2.pdf</b>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-mono text-[var(--color-text-muted)]">Nộp 07:45 AM</span>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => triggerToast('Giảng viên đã chủ động tải bài làm về máy')}
+                                        >
+                                            Tải về
+                                        </Button>
+                                    </div>
                                 </div>
-                                <span className="text-[var(--color-text-muted)] font-mono">Nộp 07:45 AM</span>
-                            </div>
 
-                            <div>
-                                <label className="block text-xs font-bold text-[var(--color-text)] mb-1">Điểm số (Thang điểm 10)</label>
-                                <input
-                                    type="text"
-                                    value={gradingScore}
-                                    onChange={(e) => setGradingScore(e.target.value)}
-                                    className="h-11 w-32 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 font-extrabold text-lg text-[var(--color-primary)] outline-none focus:border-[var(--color-primary)]"
-                                />
-                            </div>
+                                <div className="min-h-[420px] rounded-2xl border border-[var(--color-border)] bg-white p-5 text-slate-950 shadow-inner">
+                                    <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Xem trực tiếp bài nộp</p>
+                                            <h4 className="text-lg font-black">Bài làm Nguyễn Văn An — Đề 2</h4>
+                                        </div>
+                                        <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700">PDF Preview</span>
+                                    </div>
+                                    <div className="space-y-4 text-sm leading-7">
+                                        <p><b>Câu 1.</b> Học sinh trình bày đúng giả thiết, kết luận và dựng hình rõ ràng.</p>
+                                        <p><b>Câu 2.</b> Chứng minh hai tam giác đồng dạng, suy ra tỉ lệ cạnh tương ứng chính xác.</p>
+                                        <p><b>Câu 3.</b> Lập luận đường tròn ngoại tiếp tốt, có ký hiệu góc đầy đủ.</p>
+                                        <p><b>Câu 4b.</b> Cần rút gọn biểu thức thêm một bước để đạt điểm tối đa.</p>
+                                    </div>
+                                    <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-xs font-semibold text-slate-600">
+                                        Bản xem trước hiển thị ngay trong hệ thống để giáo viên chấm điểm. File chỉ tải về khi bấm nút “Tải về”.
+                                    </div>
+                                </div>
+                            </section>
 
-                            <div>
-                                <label className="block text-xs font-bold text-[var(--color-text)] mb-1">Nhận xét của giáo viên</label>
-                                <textarea
-                                    rows={4}
-                                    value={gradingFeedback}
-                                    onChange={(e) => setGradingFeedback(e.target.value)}
-                                    className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
-                                />
-                            </div>
+                            <section className="space-y-4 p-6">
+                                <div>
+                                    <label className="mb-1 block text-xs font-bold text-[var(--color-text)]">Điểm số (Thang điểm 10)</label>
+                                    <input
+                                        type="text"
+                                        value={gradingScore}
+                                        onChange={(e) => setGradingScore(e.target.value)}
+                                        className="h-11 w-32 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 text-lg font-extrabold text-[var(--color-primary)] outline-none focus:border-[var(--color-primary)]"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="mb-1 block text-xs font-bold text-[var(--color-text)]">Nhận xét của giáo viên</label>
+                                    <textarea
+                                        rows={10}
+                                        value={gradingFeedback}
+                                        onChange={(e) => setGradingFeedback(e.target.value)}
+                                        className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-primary)]"
+                                    />
+                                </div>
+                            </section>
                         </div>
 
-                        <div className="flex items-center justify-end gap-3 border-t border-[var(--color-border)] p-4 bg-[var(--color-bg-soft)]">
+                        <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-[var(--color-border)] bg-[var(--color-bg-soft)] px-4 py-5 shadow-[0_-12px_30px_rgba(15,23,42,0.12)]">
                             <Button onClick={() => setShowGradingModal(false)}>Đóng</Button>
                             <PrimaryButton
                                 onClick={() => {
@@ -701,8 +633,8 @@ export const Dashboard = memo(function Dashboard({ user, summary, classes, onNav
                 classItem={selectedDrawerClass}
                 onClose={() => setSelectedDrawerClass(null)}
                 user={user}
-                onOpenModule={(mod) => {
-                    if (onNavigate) onNavigate(mod);
+                onOpenModule={(mod, classId) => {
+                    if (onNavigate) onNavigate(mod, classId || selectedDrawerClass?.id);
                 }}
             />
         </div>

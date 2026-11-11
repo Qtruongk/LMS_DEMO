@@ -9,7 +9,8 @@ export type QuestionType =
     | 'mindmap'
     | 'speaking'
     | 'writing'
-    | 'essay';
+    | 'essay'
+    | 'paper_upload';
 
 export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
@@ -43,6 +44,7 @@ export type QuestionOption = {
 export type QuestionItem = {
     id?: number;
     exam_id?: number;
+    class_id?: number | null;
     subject?: string;
     chapter?: string;
     topic?: string;
@@ -77,7 +79,13 @@ export type OnlineExam = {
     shuffle_options: boolean;
     display_mode: 'one' | 'all';
     auto_submit: boolean;
-    status: 'draft' | 'published' | 'closed';
+    random_question_count?: number;
+    question_delivery_mode?: 'same' | 'different';
+    shared_question_ids?: number[];
+    is_library?: boolean;
+    status: 'draft' | 'published' | 'closed' | 'library';
+    gradebook_name?: string;
+    grade_column_name?: string;
     proctoring_enabled?: boolean;
     homework_enabled?: boolean;
     assigned_teacher_ids?: number[];
@@ -86,6 +94,8 @@ export type OnlineExam = {
     created_at?: string;
     question_count?: number;
     submission_count?: number;
+    submission_status?: 'in_progress' | 'pending_essay' | 'graded';
+    has_submitted?: boolean;
 };
 
 export type StudentAnswer = string | string[] | Record<string, string>;
@@ -100,6 +110,8 @@ export type ExamSubmission = {
     exam_title?: string;
     subject?: string;
     class_name?: string;
+    gradebook_name?: string;
+    grade_column_name?: string;
     attempt_number: number;
     start_time: string;
     submit_time?: string;
@@ -107,7 +119,9 @@ export type ExamSubmission = {
     total_score?: number;
     max_score?: number;
     answers: Record<number, StudentAnswer>;
+    question_ids?: number[];
     essay_scores?: Record<number, { score: number; feedback: string; audio_feedback_url?: string }>;
+    grade_details?: Record<string, { label: string; score: number; max_score?: number }>;
     teacher_feedback?: string;
     teacher_audio_feedback_url?: string;
     assigned_grader_name?: string;

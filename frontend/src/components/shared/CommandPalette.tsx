@@ -41,34 +41,43 @@ export function CommandPalette({ isOpen, onClose, onSelectModule, classes, onSel
     if (!isOpen) return null;
 
     const isStudent = user?.role === 'student';
-    const isAdmin = user?.role === 'admin' || user?.role === 'owner';
+    const isOwner = user?.role === 'owner';
+    const isAdmin = user?.role === 'admin';
 
     const baseItems: SearchItem[] = [
         { id: 'nav-dashboard', title: 'Trang tổng quan', category: 'Điều hướng', icon: <BookIcon size={16} />, action: () => { onSelectModule('dashboard'); onClose(); } },
-        { id: 'nav-classes', title: 'Danh sách Lớp học', category: 'Điều hướng', icon: <BookIcon size={16} />, action: () => { onSelectModule('classes'); onClose(); } },
-        { id: 'nav-schedule', title: isStudent ? 'Lịch học của tôi' : 'Thời khóa biểu giảng dạy', category: 'Điều hướng', icon: <CalendarIcon size={16} />, action: () => { onSelectModule('schedule'); onClose(); } },
-        { id: 'nav-materials', title: isStudent ? 'Thư viện Tài liệu' : 'Kho tài liệu bài giảng', category: 'Điều hướng', icon: <FileIcon size={16} />, action: () => { onSelectModule('materials'); onClose(); } },
-        { id: 'nav-notifications', title: 'Bảng tin & Thông báo', category: 'Điều hướng', icon: <BellIcon size={16} />, action: () => { onSelectModule('notifications'); onClose(); } },
     ];
 
-    if (!isStudent) {
+    if (isStudent) {
+        baseItems.push({ id: 'nav-schedule', title: 'Lịch học của tôi', category: 'Điều hướng', icon: <CalendarIcon size={16} />, action: () => { onSelectModule('schedule'); onClose(); } });
+        baseItems.push({ id: 'nav-classes', title: 'Lớp học của tôi', category: 'Điều hướng', icon: <BookIcon size={16} />, action: () => { onSelectModule('classes'); onClose(); } });
+        baseItems.push({ id: 'nav-attendance', title: 'Lịch sử điểm danh', category: 'Tác vụ nhanh', icon: <CheckIcon size={16} />, action: () => { onSelectModule('attendance'); onClose(); } });
+        baseItems.push({ id: 'nav-tuition', title: 'Học phí & Thanh toán', category: 'Tác vụ nhanh', icon: <WalletIcon size={16} />, action: () => { onSelectModule('tuition'); onClose(); } });
+        baseItems.push({ id: 'nav-feedbacks', title: 'Gửi phản hồi / Hỗ trợ trung tâm', category: 'Tác vụ nhanh', icon: <MailIcon size={16} />, action: () => { onSelectModule('feedbacks'); onClose(); } });
+    } else if (isOwner) {
+        baseItems.push({ id: 'nav-classes', title: 'Danh sách lớp học', category: 'Điều hướng', icon: <BookIcon size={16} />, action: () => { onSelectModule('classes'); onClose(); } });
+        baseItems.push({ id: 'nav-schedule', title: 'Lịch vận hành', category: 'Điều hướng', icon: <CalendarIcon size={16} />, action: () => { onSelectModule('schedule'); onClose(); } });
+        baseItems.push({ id: 'nav-finance', title: 'Báo cáo Tài chính', category: 'Điều hướng', icon: <WalletIcon size={16} />, action: () => { onSelectModule('finance'); onClose(); } });
+        baseItems.push({ id: 'nav-service-quality', title: 'Báo cáo Chất lượng dịch vụ', category: 'Điều hướng', icon: <ChartIcon size={16} />, action: () => { onSelectModule('service-quality'); onClose(); } });
+        baseItems.push({ id: 'nav-data-analytics', title: 'Báo cáo Phân tích dữ liệu', category: 'Điều hướng', icon: <ChartIcon size={16} />, action: () => { onSelectModule('data-analytics'); onClose(); } });
+        baseItems.push({ id: 'nav-teaching-report', title: 'Báo cáo giảng dạy giáo viên', category: 'Điều hướng', icon: <ChartIcon size={16} />, action: () => { onSelectModule('teaching-report'); onClose(); } });
+        baseItems.push({ id: 'nav-class-report', title: 'Báo cáo từng lớp học', category: 'Điều hướng', icon: <ChartIcon size={16} />, action: () => { onSelectModule('class-report'); onClose(); } });
+        baseItems.push({ id: 'nav-feedbacks', title: 'Phản hồi', category: 'Tác vụ nhanh', icon: <MailIcon size={16} />, action: () => { onSelectModule('feedbacks'); onClose(); } });
+    } else if (isAdmin) {
+        baseItems.push({ id: 'nav-accounts', title: 'Quản lý tài khoản và lớp học', category: 'Điều hướng', icon: <UsersIcon size={16} />, action: () => { onSelectModule('accounts'); onClose(); } });
+        baseItems.push({ id: 'nav-class-operations', title: 'Vận hành lớp học', category: 'Tác vụ nhanh', icon: <BookIcon size={16} />, action: () => { onSelectModule('class-operations'); onClose(); } });
+        baseItems.push({ id: 'nav-notifications', title: 'Bảng tin lớp học', category: 'Điều hướng', icon: <BellIcon size={16} />, action: () => { onSelectModule('notifications'); onClose(); } });
+        baseItems.push({ id: 'nav-requests', title: 'Yêu cầu đổi mật khẩu', category: 'Điều hướng', icon: <MailIcon size={16} />, action: () => { onSelectModule('requests'); onClose(); } });
+    } else {
+        baseItems.push({ id: 'nav-schedule', title: 'Thời khóa biểu giảng dạy', category: 'Điều hướng', icon: <CalendarIcon size={16} />, action: () => { onSelectModule('schedule'); onClose(); } });
+        baseItems.push({ id: 'nav-classes', title: 'Lớp học đang dạy', category: 'Điều hướng', icon: <BookIcon size={16} />, action: () => { onSelectModule('classes'); onClose(); } });
+        baseItems.push({ id: 'nav-materials', title: 'Kho tài liệu bài giảng', category: 'Điều hướng', icon: <FileIcon size={16} />, action: () => { onSelectModule('materials'); onClose(); } });
+        baseItems.push({ id: 'nav-notifications', title: 'Bảng tin & Thông báo', category: 'Điều hướng', icon: <BellIcon size={16} />, action: () => { onSelectModule('notifications'); onClose(); } });
         baseItems.push({ id: 'nav-attendance', title: 'Điểm danh học sinh', category: 'Tác vụ nhanh', icon: <CheckIcon size={16} />, action: () => { onSelectModule('attendance'); onClose(); } });
         baseItems.push({ id: 'nav-students', title: 'Danh sách Học sinh', category: 'Điều hướng', icon: <UsersIcon size={16} />, action: () => { onSelectModule('students'); onClose(); } });
         baseItems.push({ id: 'nav-library', title: 'Thư viện số', category: 'Tác vụ nhanh', icon: <BookIcon size={16} />, action: () => { onSelectModule('library'); onClose(); } });
-    } else {
-        baseItems.push({ id: 'nav-attendance', title: 'Lịch sử điểm danh', category: 'Tác vụ nhanh', icon: <CheckIcon size={16} />, action: () => { onSelectModule('attendance'); onClose(); } });
+        baseItems.push({ id: 'nav-feedbacks', title: 'Gửi phản hồi / Hỗ trợ trung tâm', category: 'Tác vụ nhanh', icon: <MailIcon size={16} />, action: () => { onSelectModule('feedbacks'); onClose(); } });
     }
-
-    if (isAdmin) {
-        baseItems.push({ id: 'nav-reports', title: 'Báo cáo Thống kê', category: 'Điều hướng', icon: <ChartIcon size={16} />, action: () => { onSelectModule('reports'); onClose(); } });
-        baseItems.push({ id: 'nav-teachers', title: 'Quản lý Giáo viên', category: 'Điều hướng', icon: <UsersIcon size={16} />, action: () => { onSelectModule('teachers'); onClose(); } });
-    }
-
-    if (isStudent || isAdmin) {
-        baseItems.push({ id: 'nav-tuition', title: 'Học phí & Thanh toán', category: 'Tác vụ nhanh', icon: <WalletIcon size={16} />, action: () => { onSelectModule('tuition'); onClose(); } });
-    }
-
-    baseItems.push({ id: 'nav-feedbacks', title: 'Gửi phản hồi / Hỗ trợ trung tâm', category: 'Tác vụ nhanh', icon: <MailIcon size={16} />, action: () => { onSelectModule('feedbacks'); onClose(); } });
 
     const classItems: SearchItem[] = classes.map((c) => ({
         id: `class-${c.id}`,
@@ -77,14 +86,14 @@ export function CommandPalette({ isOpen, onClose, onSelectModule, classes, onSel
         icon: <BookIcon size={16} />,
         action: () => {
             if (onSelectClass) onSelectClass(c.id);
-            onSelectModule('classes');
+            onSelectModule(isAdmin ? 'accounts' : 'classes');
             onClose();
         }
     }));
 
     const allItems = [...baseItems, ...classItems];
-    const filtered = allItems.filter(item => 
-        item.title.toLowerCase().includes(query.toLowerCase()) || 
+    const filtered = allItems.filter(item =>
+        item.title.toLowerCase().includes(query.toLowerCase()) ||
         item.category.toLowerCase().includes(query.toLowerCase())
     );
 
@@ -151,11 +160,10 @@ export function CommandPalette({ isOpen, onClose, onSelectModule, classes, onSel
                                         key={item.id}
                                         onClick={item.action}
                                         onMouseEnter={() => setSelectedIndex(idx)}
-                                        className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 cursor-pointer transition ${
-                                            isSelected 
-                                                ? 'bg-[var(--color-primary-soft)] text-[var(--color-primary)] font-semibold' 
-                                                : 'text-[var(--color-text)] hover:bg-[var(--color-bg-soft)]'
-                                        }`}
+                                        className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 cursor-pointer transition ${isSelected
+                                            ? 'bg-[var(--color-primary-soft)] text-[var(--color-primary)] font-semibold'
+                                            : 'text-[var(--color-text)] hover:bg-[var(--color-bg-soft)]'
+                                            }`}
                                     >
                                         <div className="flex items-center gap-3">
                                             <span className={`grid h-8 w-8 place-items-center rounded-lg ${isSelected ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-bg-soft)] text-[var(--color-text-secondary)]'}`}>

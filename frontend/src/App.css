@@ -996,6 +996,167 @@ tbody tr:hover {
   background: rgba(0, 0, 0, 0.62) !important;
 }
 
+/* Student dark mode: reduce white glare from student-specific legacy cards. */
+.dark main[data-role="student"] {
+  --color-bg: #0b0f16;
+  --color-bg-elevated: #111827;
+  --color-bg-soft: #151c28;
+  --color-bg-muted: #1c2635;
+  --color-card: #111827;
+  --color-border: #263244;
+  --color-border-strong: #3a4960;
+  --color-text: #e5eaf2;
+  --color-text-secondary: #aeb9ca;
+  --color-text-muted: #8491a5;
+  --color-primary: #f87171;
+  --color-primary-hover: #fb7185;
+  --color-primary-active: #fca5a5;
+  --color-primary-text: #fecaca;
+  --color-primary-soft: #2b171b;
+  --color-primary-subtle: rgba(248, 113, 113, 0.14);
+  --color-primary-border: rgba(252, 165, 165, 0.38);
+}
+
+.dark main[data-role="student"] section[class*="bg-white"]:not(.score-kpi-card):not(.score-progress-container),
+.dark main[data-role="student"] article[class*="bg-white"]:not(.score-kpi-card),
+.dark main[data-role="student"] div[class*="bg-white"]:not(.score-kpi-card):not(.score-progress-container),
+.dark main[data-role="student"] button[class*="bg-white"],
+.dark main[data-role="student"] input[class*="bg-white"],
+.dark main[data-role="student"] select[class*="bg-white"],
+.dark main[data-role="student"] textarea[class*="bg-white"] {
+  background-color: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-text) !important;
+}
+
+.dark main[data-role="student"] [class*="bg-slate-50"]:not(.score-kpi-card),
+.dark main[data-role="student"] [class*="bg-slate-100"]:not(.score-kpi-card) {
+  background-color: var(--color-bg-soft) !important;
+}
+
+.dark main[data-role="student"] [class*="text-slate-950"]:not(.score-kpi-val):not(.score-kpi-title),
+.dark main[data-role="student"] [class*="text-slate-900"]:not(.score-kpi-val):not(.score-kpi-title),
+.dark main[data-role="student"] [class*="text-slate-800"]:not(.score-kpi-val):not(.score-kpi-title) {
+  color: var(--color-text) !important;
+}
+
+.dark main[data-role="student"] [class*="text-slate-700"]:not(.score-kpi-sub),
+.dark main[data-role="student"] [class*="text-slate-600"]:not(.score-kpi-sub) {
+  color: var(--color-text-secondary) !important;
+}
+
+.dark main[data-role="student"] [class*="text-slate-500"]:not(.score-kpi-sub),
+.dark main[data-role="student"] [class*="text-slate-400"]:not(.score-kpi-sub) {
+  color: var(--color-text-muted) !important;
+}
+
+.dark main[data-role="student"] [class*="border-slate-100"]:not(.score-kpi-card),
+.dark main[data-role="student"] [class*="border-slate-200"]:not(.score-kpi-card) {
+  border-color: var(--color-border) !important;
+}
+
+.dark main[data-role="student"] [class*="bg-red-50"]:not(.score-kpi-card),
+.dark main[data-role="student"] [class*="bg-rose-50"]:not(.score-kpi-card) {
+  background-color: rgba(127, 29, 29, 0.16) !important;
+}
+
+/* Red text needs a light tint against student dark surfaces. */
+.dark main[data-role="student"] [class*="text-red-"]:not(.score-kpi-title):not(.score-kpi-val):not(.score-kpi-sub),
+.dark main[data-role="student"] [class*="text-rose-"]:not(.score-kpi-title):not(.score-kpi-val):not(.score-kpi-sub) {
+  color: #fca5a5 !important;
+}
+
+.dark main[data-role="student"] [class*="border-red-"]:not(.score-kpi-card),
+.dark main[data-role="student"] [class*="border-rose-"]:not(.score-kpi-card) {
+  border-color: rgba(252, 165, 165, 0.38) !important;
+}
+
+.dark main[data-role="student"] [class*="bg-blue-50"]:not(.score-kpi-card),
+.dark main[data-role="student"] [class*="bg-sky-50"]:not(.score-kpi-card) {
+  background-color: rgba(30, 64, 175, 0.14) !important;
+}
+
+.dark main[data-role="student"] [class*="bg-emerald-50"]:not(.score-kpi-card) {
+  background-color: rgba(6, 95, 70, 0.14) !important;
+}
+
+.dark main[data-role="student"] [class*="bg-amber-50"]:not(.score-kpi-card),
+.dark main[data-role="student"] [class*="bg-yellow-50"]:not(.score-kpi-card) {
+  background-color: rgba(146, 64, 14, 0.14) !important;
+}
+
+.dark main[data-role="student"] [style*="linear-gradient"]:not(.score-kpi-card) {
+  background: linear-gradient(135deg, #151c28 0%, #111827 55%, #171923 100%) !important;
+}
+
+.dark main[data-role="student"] [class*="shadow-slate"],
+.dark main[data-role="student"] [class*="shadow-sky"],
+.dark main[data-role="student"] [class*="shadow-rose"],
+.dark main[data-role="student"] [class*="shadow-amber"] {
+  --tw-shadow-color: rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Specific styling for Student Score Progress KPI Cards */
+.score-kpi-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: 1.125rem;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.score-kpi-card:hover {
+  transform: translateY(-3px);
+}
+
+/* Card 1: Blue / Average */
+.score-kpi-blue {
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 50%, #f0fdf4 100%);
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+}
+.dark main[data-role="student"] .score-kpi-blue {
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.45) 0%, #0f172a 60%, #0f172a 100%) !important;
+  border: 1px solid rgba(96, 165, 250, 0.35) !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.6) !important;
+}
+
+/* Card 2: Amber / High */
+.score-kpi-amber {
+  background: linear-gradient(135deg, #fffbeb 0%, #ffffff 50%, #fef3c7 100%);
+  border: 1px solid #fde68a;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.08);
+}
+.dark main[data-role="student"] .score-kpi-amber {
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.45) 0%, #0f172a 60%, #0f172a 100%) !important;
+  border: 1px solid rgba(251, 191, 36, 0.35) !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.6) !important;
+}
+
+/* Card 3: Emerald / Latest */
+.score-kpi-emerald {
+  background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 50%, #f0fdfa 100%);
+  border: 1px solid #a7f3d0;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08);
+}
+.dark main[data-role="student"] .score-kpi-emerald {
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.45) 0%, #0f172a 60%, #0f172a 100%) !important;
+  border: 1px solid rgba(52, 211, 153, 0.35) !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.6) !important;
+}
+
+/* Card 4: Rose / Growth */
+.score-kpi-rose {
+  background: linear-gradient(135deg, #fff1f2 0%, #ffffff 50%, #fef2f2 100%);
+  border: 1px solid #fecdd3;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.08);
+}
+.dark main[data-role="student"] .score-kpi-rose {
+  background: linear-gradient(135deg, rgba(136, 19, 55, 0.45) 0%, #0f172a 60%, #0f172a 100%) !important;
+  border: 1px solid rgba(251, 113, 133, 0.35) !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.6) !important;
+}
+
 /* -----------------------------
    20. Reduced Motion
    ----------------------------- */

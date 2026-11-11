@@ -4,8 +4,9 @@ import { Avatar } from '../../../components/shared/Avatar';
 import { Badge, EmptyState, Field, Panel, PrimaryButton } from '../../../components/shared/ui';
 import { BellIcon, CalendarIcon, ChartIcon, CheckCircleIcon, ClockIcon, FileIcon, SearchIcon } from '../../../components/shared/icons';
 import type { User } from '../../../types';
+import { StudentProfileModal } from '../../../components/shared/StudentProfileModal';
 
-type AccountForm = { username: string; password: string };
+type AccountForm = { username: string; password: string; full_name?: string; };
 
 type PeopleProps = {
     userRole?: string;
@@ -17,6 +18,7 @@ type PeopleProps = {
     setTeacherForm?: (value: AccountForm) => void;
     createTeacher?: (event: FormEvent) => void;
     importUsersCsv?: (csvContent: string, defaultRole?: string) => Promise<unknown>;
+    [key: string]: any;
 };
 
 export function Students(props: PeopleProps) {
@@ -27,7 +29,7 @@ export function Students(props: PeopleProps) {
     return (
         <PeopleForm
             title="Tạo tài khoản học sinh"
-            description="Tạo đơn lẻ hoặc tải file CSV nhập hàng loạt tài khoản học sinh."
+           
             form={props.studentForm!}
             setForm={props.setStudentForm!}
             onSubmit={props.createStudent!}
@@ -44,7 +46,7 @@ export function Teachers(props: PeopleProps) {
     return (
         <PeopleForm
             title="Tạo tài khoản giáo viên"
-            description="Tạo đơn lẻ hoặc tải file CSV nhập hàng loạt tài khoản giáo viên."
+           
             form={props.teacherForm!}
             setForm={props.setTeacherForm!}
             onSubmit={props.createTeacher!}
@@ -95,7 +97,7 @@ function TeacherStudentsExperience({ students }: { students: User[] }) {
     return (
         <div className="space-y-4">
             <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
-                <Panel title="Bộ lọc thông minh" subtitle="Tìm kiếm tức thì và phân nhóm trạng thái để giảm tải nhận thức.">
+                <Panel title="Bộ lọc thông minh">
                     <div className="grid gap-3">
                         <div className="relative">
                             <SearchIcon size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
@@ -132,7 +134,7 @@ function TeacherStudentsExperience({ students }: { students: User[] }) {
                     </div>
                 </Panel>
 
-                <Panel title="Danh sách học sinh" subtitle="Thẻ lớn, nút bấm rõ, tối ưu thao tác trên màn hình nhỏ.">
+                <Panel title="Danh sách học sinh">
                     <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
                         {filteredStudents.map((student) => (
                             <article key={student.id} className="group rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4 shadow-sm transition hover:-translate-y-1 hover:border-[var(--color-primary-border)] hover:shadow-xl">
@@ -159,16 +161,16 @@ function TeacherStudentsExperience({ students }: { students: User[] }) {
                             </article>
                         ))}
                     </div>
-                    {!filteredStudents.length && <EmptyState title="Không tìm thấy học sinh" description="Thử xoá bộ lọc hoặc nhập từ khoá ngắn hơn." />}
+                    {!filteredStudents.length && <EmptyState title="Không tìm thấy học sinh" />}
                 </Panel>
             </div>
 
             {focusedStudent && (
-                <Panel title="Không gian hành động nhanh" subtitle="Tổng hợp việc cần làm tiếp theo cho học sinh đang được chọn.">
+                <Panel title="Không gian hành động nhanh">
                     <div className="grid gap-3 md:grid-cols-3">
-                        <ActionTile icon={<CalendarIcon size={18} />} title="Lịch hẹn" value="Thứ 5, 19:30" description={`Trao đổi tiến độ với ${focusedStudent.full_name || focusedStudent.username}.`} />
-                        <ActionTile icon={<FileIcon size={18} />} title="Bài tập" value="2 bài còn thiếu" description="Ưu tiên bài luyện tập nền tảng trước bài nâng cao." />
-                        <ActionTile icon={<BellIcon size={18} />} title="Thông báo" value="Mẫu đã soạn" description="Popup gửi nhắc có sẵn nội dung để giáo viên chỉnh nhanh." />
+                        <ActionTile icon={<CalendarIcon size={18} />} title="Lịch hẹn" value="Thứ 5, 19:30" />
+                        <ActionTile icon={<FileIcon size={18} />} title="Bài tập" value="2 bài còn thiếu" />
+                        <ActionTile icon={<BellIcon size={18} />} title="Thông báo" value="Mẫu đã soạn" />
                     </div>
                 </Panel>
             )}
@@ -188,9 +190,9 @@ function TeacherStudentsExperience({ students }: { students: User[] }) {
                         </div>
                     </div>
                     <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                        <ActionTile icon={<CheckCircleIcon size={18} />} title="Chuyên cần" value="92%" description="Ổn định, vắng 1 buổi có phép." />
-                        <ActionTile icon={<ChartIcon size={18} />} title="Tiến bộ" value="+14%" description="Tăng sau 3 buổi luyện đề." />
-                        <ActionTile icon={<ClockIcon size={18} />} title="Thời lượng" value="8.5 giờ" description="Tổng học trong 7 ngày." />
+                        <ActionTile icon={<CheckCircleIcon size={18} />} title="Chuyên cần" value="92%" />
+                        <ActionTile icon={<ChartIcon size={18} />} title="Tiến bộ" value="+14%" />
+                        <ActionTile icon={<ClockIcon size={18} />} title="Thời lượng" value="8.5 giờ" />
                     </div>
                 </StudentPopup>
             )}
@@ -223,8 +225,8 @@ function ProgressTile({ label, value }: { label: string; value: number }) {
     return <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3"><div className="flex items-center justify-between text-xs font-bold text-[var(--color-text-secondary)]"><span>{label}</span><span>{value}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--color-border)]"><span className="block h-full rounded-full bg-[var(--color-primary)]" style={{ width: `${value}%` }} /></div></div>;
 }
 
-function ActionTile({ icon, title, value, description }: { icon: ReactNode; title: string; value: string; description: string }) {
-    return <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4"><div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">{icon}</div><p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">{title}</p><h4 className="mt-1 text-lg font-black text-[var(--color-text)]">{value}</h4><p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">{description}</p></div>;
+function ActionTile({ icon, title, value }: { icon: ReactNode; title: string; value: string; }) {
+    return <div className="flex flex-col justify-center rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4"><div className="mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">{icon}</div><p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">{title}</p><h4 className="mt-1 text-lg font-black text-[var(--color-text)]">{value}</h4></div>;
 }
 
 function StudentPopup({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -246,7 +248,7 @@ function StudentPopup({ title, onClose, children }: { title: string; onClose: ()
 
 function PeopleForm({
     title,
-    description,
+    
     form,
     setForm,
     onSubmit,
@@ -256,7 +258,7 @@ function PeopleForm({
     children,
 }: {
     title: string;
-    description: string;
+    
     form: AccountForm;
     setForm: (value: AccountForm) => void;
     onSubmit: (event: FormEvent) => void;
@@ -307,7 +309,7 @@ Trần Thị Bình, tranthibinh, matkhau123, ${defaultRole}, 0987654321`;
 
     return (
         <div className="grid gap-4 xl:grid-cols-[440px_1fr]">
-            <Panel title={title} subtitle={description}>
+            <Panel title={title}>
                 <div className="mb-4 flex rounded-lg bg-[var(--color-bg-soft)] p-1">
                     <button
                         type="button"
@@ -388,25 +390,41 @@ Trần Thị Bình, tranthibinh, matkhau123, ${defaultRole}, 0987654321`;
     );
 }
 
-function People({ users, title }: { users: User[]; title: string }) {
+function People({ users, title, user }: { users: User[]; title?: string; user?: User; [key: string]: any }) {
+    const [profileId, setProfileId] = useState<number | null>(null);
+    const canOpen = (item: User) => Boolean(user) && item.role === 'student';
     return (
         <Panel title={title}>
             {users.length ? (
                 <div className="grid gap-3 md:grid-cols-2">
-                    {users.map((item) => (
-                        <article key={item.id} className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] p-4 transition hover:border-[var(--color-primary-border)] hover:shadow-sm">
-                            <Avatar user={item} />
-                            <div className="min-w-0 flex-1">
-                                <h3 className="truncate font-semibold text-[var(--color-text)]">{item.full_name || item.username}</h3>
-                                <p className="truncate text-sm text-[var(--color-text-secondary)]">{item.username}</p>
-                            </div>
-                            <Badge tone={item.status === 'active' ? 'success' : 'warning'}>
-                                {item.status === 'active' ? 'Đang hoạt động' : 'Tạm khóa'}
-                            </Badge>
-                        </article>
-                    ))}
+                    {users.map((item) => {
+                        const clickable = canOpen(item);
+                        return (
+                            <article
+                                key={item.id}
+                                role={clickable ? 'button' : undefined}
+                                tabIndex={clickable ? 0 : undefined}
+                                onClick={clickable ? () => setProfileId(item.id) : undefined}
+                                onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setProfileId(item.id); } } : undefined}
+                                className={`flex items-center gap-3 rounded-xl border border-[var(--color-border)] p-4 transition hover:border-[var(--color-primary-border)] hover:shadow-sm ${clickable ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30' : ''}`}
+                            >
+                                <Avatar user={item} />
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="truncate font-semibold text-[var(--color-text)]">{item.full_name || item.username}</h3>
+                                    {item.role === 'student' && item.student_code && (
+                                        <p className="truncate text-xs text-[var(--color-text-muted)]">{item.student_code}</p>
+                                    )}
+                                </div>
+                                <Badge tone={item.status === 'active' ? 'success' : 'warning'}>
+                                    {item.status === 'active' ? 'Đang hoạt động' : 'Tạm khóa'}
+                                </Badge>
+                            </article>
+                        );
+                    })}
                 </div>
             ) : <EmptyState />}
+            {user && <StudentProfileModal studentId={profileId} viewerId={user.id} onClose={() => setProfileId(null)} />}
         </Panel>
     );
 }
+export const Accounts = People;

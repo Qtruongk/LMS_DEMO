@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarIcon, MapPinIcon, VideoIcon, FileIcon, InfoIcon } from '../../../components/shared/icons';
+import { AlertCircleIcon, BellIcon, CalendarIcon, MapPinIcon, VideoIcon, FileIcon, InfoIcon } from '../../../components/shared/icons';
 import { Badge, Panel, Button } from '../../../components/shared/ui';
 import type { ClassItem, SessionItem } from '../../../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,6 +16,20 @@ type StudentScheduleSession = SessionItem & {
     room: string;
     dateLabel: string;
     timeLabel: string;
+};
+
+type StudentExamReminder = {
+    id: number;
+    title: string;
+    subject?: string;
+    class_id?: number | null;
+    class_name?: string;
+    target_time?: string;
+    submitted?: boolean;
+    status?: string;
+    diffDays: number;
+    message: string;
+    tone: 'danger' | 'warning' | 'info';
 };
 
 function getCurrentUserId() {
@@ -50,10 +64,54 @@ function getTimeLabel(start?: string, end?: string) {
     return `${startText} - ${endDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
+function getStartOfDay(value: Date) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+}
+
+function getExamTargetTime(exam: Record<string, unknown>) {
+    const value = exam.due_time || exam.end_time || exam.start_time;
+    return typeof value === 'string' ? value : undefined;
+}
+
+function getExamReminderMessage(diffDays: number) {
+    if (diffDays === 0) return 'Hôm nay mình có bài kiểm tra cần hoàn thành';
+    if (diffDays === 1) return 'Ngày mai có bài kiểm tra cần hoàn thành';
+    if (diffDays > 1) return `${diffDays} ngày nữa có bài kiểm tra`;
+    return `Bài kiểm tra đã quá hạn ${Math.abs(diffDays)} ngày`;
+}
+
+function buildExamReminder(exam: Record<string, unknown>): StudentExamReminder | null {
+    const targetTime = getExamTargetTime(exam);
+    if (!targetTime) return null;
+    const targetDate = new Date(targetTime);
+    if (Number.isNaN(targetDate.getTime())) return null;
+
+    const diffDays = Math.round((getStartOfDay(targetDate) - getStartOfDay(new Date())) / 86400000);
+    const submissionStatus = typeof exam.submission_status === 'string' ? exam.submission_status : undefined;
+    const submitted = Boolean(exam.has_submitted) || ['submitted', 'graded', 'pending_essay'].includes(submissionStatus || '');
+    if (submitted || diffDays < -7) return null;
+
+    return {
+        id: Number(exam.id),
+        title: String(exam.title || 'Bài kiểm tra'),
+        subject: typeof exam.subject === 'string' ? exam.subject : undefined,
+        class_id: typeof exam.class_id === 'number' ? exam.class_id : null,
+        class_name: typeof exam.class_name === 'string' ? exam.class_name : undefined,
+        target_time: targetTime,
+        submitted,
+        status: typeof exam.status === 'string' ? exam.status : undefined,
+        diffDays,
+        message: getExamReminderMessage(diffDays),
+        tone: diffDays < 0 ? 'danger' : diffDays <= 1 ? 'warning' : 'info',
+    };
+}
+
 export const StudentScheduleView = memo(function StudentScheduleView({ classes }: StudentScheduleViewProps) {
     const [viewMode, setViewMode] = useState<'today' | 'week' | 'month' | 'agenda'>('agenda');
+    const [layoutMode, setLayoutMode] = useState<'list' | 'grid'>('list');
     const [selectedSession, setSelectedSession] = useState<StudentScheduleSession | null>(null);
     const [sessions, setSessions] = useState<StudentScheduleSession[]>([]);
+    const [examReminders, setExamReminders] = useState<StudentExamReminder[]>([]);
     const [loading, setLoading] = useState(false);
 
     const loadSessions = useCallback(async () => {
@@ -89,9 +147,47 @@ export const StudentScheduleView = memo(function StudentScheduleView({ classes }
         }
     }, [classes]);
 
+    const loadExamReminders = useCallback(async () => {
+        const userId = getCurrentUserId();
+        if (!userId) {
+            setExamReminders([]);
+            return;
+        }
+        try {
+            const response = await fetch(`${API_URL}/api/online-exams`, {
+                headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+            });
+            const data = await response.json();
+            const exams = Array.isArray(data.exams) ? data.exams as Record<string, unknown>[] : [];
+            setExamReminders(
+                exams
+                    .map(buildExamReminder)
+                    .filter((item): item is StudentExamReminder => Boolean(item))
+                    .sort((a, b) => a.diffDays - b.diffDays)
+                    .slice(0, 6),
+            );
+        } catch (error) {
+            console.error('Lỗi tải thông báo bài kiểm tra:', error);
+            setExamReminders([]);
+        }
+    }, []);
+
     useEffect(() => {
         loadSessions();
-    }, [loadSessions]);
+        loadExamReminders();
+    }, [loadSessions, loadExamReminders]);
+
+    const remindersByClassAndDate = useMemo(() => {
+        const map = new Map<string, StudentExamReminder[]>();
+        examReminders.forEach((reminder) => {
+            if (!reminder.class_id || !reminder.target_time) return;
+            const date = new Date(reminder.target_time);
+            if (Number.isNaN(date.getTime())) return;
+            const key = `${reminder.class_id}-${getStartOfDay(date)}`;
+            map.set(key, [...(map.get(key) || []), reminder]);
+        });
+        return map;
+    }, [examReminders]);
 
     const visibleSessions = useMemo(() => sessions.filter((session) => {
         const date = new Date(session.start_time);
@@ -113,25 +209,72 @@ export const StudentScheduleView = memo(function StudentScheduleView({ classes }
                     </span>
                     <div>
                         <h2 className="text-lg font-bold text-[var(--color-text)]">Lịch học của tôi</h2>
-                        <p className="text-xs text-[var(--color-text-secondary)]">Dữ liệu lịch học lấy trực tiếp từ cơ sở dữ liệu lớp đã ghi danh</p>
                     </div>
                 </div>
 
-                <div className="flex rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-1">
-                    {['today', 'week', 'month', 'agenda'].map((mode) => (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <div className="flex rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-1">
+                        {['today', 'week', 'month', 'agenda'].map((mode) => (
+                            <button
+                                key={mode}
+                                onClick={() => setViewMode(mode as 'today' | 'week' | 'month' | 'agenda')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition sm:px-4 ${viewMode === mode ? 'bg-[var(--color-card)] text-[var(--color-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
+                                    }`}
+                            >
+                                {mode === 'today' ? 'Hôm nay' : mode === 'week' ? 'Tuần' : mode === 'month' ? 'Tháng' : 'Tất cả'}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-1" aria-label="Kiểu hiển thị thời khóa biểu">
                         <button
-                            key={mode}
-                            onClick={() => setViewMode(mode as 'today' | 'week' | 'month' | 'agenda')}
-                            className={`rounded-lg px-4 py-1.5 text-xs font-bold transition ${viewMode === mode ? 'bg-[var(--color-card)] text-[var(--color-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
-                                }`}
+                            type="button"
+                            onClick={() => setLayoutMode('list')}
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${layoutMode === 'list' ? 'bg-[var(--color-card)] text-[var(--color-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'}`}
+                            aria-pressed={layoutMode === 'list'}
                         >
-                            {mode === 'today' ? 'Hôm nay' : mode === 'week' ? 'Tuần' : mode === 'month' ? 'Tháng' : 'Danh sách'}
+                            <span className="grid gap-0.5" aria-hidden="true"><i className="block h-0.5 w-3 rounded bg-current" /><i className="block h-0.5 w-3 rounded bg-current" /><i className="block h-0.5 w-3 rounded bg-current" /></span>
+                            Danh sách
                         </button>
-                    ))}
+                        <button
+                            type="button"
+                            onClick={() => setLayoutMode('grid')}
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${layoutMode === 'grid' ? 'bg-[var(--color-card)] text-[var(--color-primary)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'}`}
+                            aria-pressed={layoutMode === 'grid'}
+                        >
+                            <span className="grid grid-cols-2 gap-0.5" aria-hidden="true"><i className="h-1.5 w-1.5 rounded-[2px] bg-current" /><i className="h-1.5 w-1.5 rounded-[2px] bg-current" /><i className="h-1.5 w-1.5 rounded-[2px] bg-current" /><i className="h-1.5 w-1.5 rounded-[2px] bg-current" /></span>
+                            Dạng lưới
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="grid gap-4">
+            {examReminders.length > 0 && (
+                <div className="grid gap-3 rounded-[1.5rem] border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4 text-amber-950 shadow-sm dark:border-amber-500/30 dark:from-amber-500/10 dark:to-orange-500/10 dark:text-amber-100">
+                    <div className="flex items-center gap-3">
+                        <span className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-500 text-white shadow-lg shadow-amber-500/20">
+                            <BellIcon size={20} />
+                        </span>
+                        <div>
+                            <h3 className="text-sm font-black">Nhắc nhở bài kiểm tra</h3>
+                            <p className="text-xs font-semibold opacity-75">Thông báo được đồng bộ theo thời khóa biểu và bài kiểm tra của lớp đã ghi danh.</p>
+                        </div>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-2">
+                        {examReminders.map((reminder) => (
+                            <div key={reminder.id} className="flex items-start gap-3 rounded-2xl border border-white/60 bg-white/70 p-3 shadow-xs dark:border-white/10 dark:bg-white/5">
+                                <AlertCircleIcon size={18} className={reminder.tone === 'danger' ? 'text-red-500' : reminder.tone === 'warning' ? 'text-amber-500' : 'text-blue-500'} />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-black">{reminder.message}</p>
+                                    <p className="truncate text-xs font-semibold opacity-75">{reminder.title}{reminder.class_name ? ` • ${reminder.class_name}` : ''}</p>
+                                    <p className="text-[11px] font-bold opacity-60">{getDateLabel(reminder.target_time)} • {getTimeLabel(reminder.target_time)}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <div className={`grid gap-4 ${layoutMode === 'grid' ? 'sm:grid-cols-2 xl:grid-cols-3' : ''}`}>
                 {loading ? (
                     <Panel>
                         <div className="py-10 text-center text-sm text-[var(--color-text-muted)]">Đang tải lịch học từ cơ sở dữ liệu...</div>
@@ -143,10 +286,10 @@ export const StudentScheduleView = memo(function StudentScheduleView({ classes }
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
                         onClick={() => setSelectedSession(session)}
-                        className="group cursor-pointer rounded-[1.5rem] border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-sm transition hover:-translate-y-1 hover:border-[var(--color-primary-border)] hover:shadow-lg"
+                        className={`group cursor-pointer rounded-[1.5rem] border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm transition hover:-translate-y-1 hover:border-[var(--color-primary-border)] hover:shadow-lg ${layoutMode === 'grid' ? 'min-h-64 p-4' : 'p-5'}`}
                     >
-                        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                            <div className="flex items-start gap-4">
+                        <div className={`flex h-full flex-col gap-4 ${layoutMode === 'list' ? 'md:flex-row md:items-center md:justify-between' : ''}`}>
+                            <div className={`flex items-start gap-4 ${layoutMode === 'grid' ? 'flex-1' : ''}`}>
                                 <div className="flex h-14 w-14 flex-col items-center justify-center rounded-2xl bg-[var(--color-bg-soft)] text-center">
                                     <span className="text-[10px] font-bold uppercase text-[var(--color-primary)]">{session.dateLabel}</span>
                                 </div>
@@ -156,15 +299,30 @@ export const StudentScheduleView = memo(function StudentScheduleView({ classes }
                                         <Badge tone="neutral">{session.type === 'online' ? 'Online' : 'Tại lớp'}</Badge>
                                     </div>
                                     <h3 className="text-lg font-bold text-[var(--color-text)] group-hover:text-[var(--color-primary)]">{session.title}</h3>
-                                    <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{session.classRef?.teacher_name || 'Giảng viên'} • {session.classRef?.subject || session.classRef?.name}</p>
+                                    {(() => {
+                                        const sessionDate = new Date(session.start_time);
+                                        const key = `${session.classRef?.id || 0}-${Number.isNaN(sessionDate.getTime()) ? 0 : getStartOfDay(sessionDate)}`;
+                                        const relatedReminders = remindersByClassAndDate.get(key) || [];
+                                        if (!relatedReminders.length) return null;
+                                        return (
+                                            <div className="mt-3 grid gap-2">
+                                                {relatedReminders.map((reminder) => (
+                                                    <div key={reminder.id} className="inline-flex w-fit max-w-full items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
+                                                        <BellIcon size={13} />
+                                                        <span className="truncate">{reminder.message}: {reminder.title}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 
-                            <div className="grid gap-2 text-sm md:text-right">
-                                <div className="flex items-center gap-2 font-bold text-[var(--color-text)] md:justify-end">
+                            <div className={`grid gap-2 border-[var(--color-border)] text-sm ${layoutMode === 'grid' ? 'mt-auto border-t pt-3' : 'md:text-right'}`}>
+                                <div className={`flex items-center gap-2 font-bold text-[var(--color-text)] ${layoutMode === 'list' ? 'md:justify-end' : ''}`}>
                                     <CalendarIcon size={16} className="text-[var(--color-text-muted)]" /> {session.dateLabel}
                                 </div>
-                                <div className="flex items-center gap-2 text-[var(--color-text-secondary)] md:justify-end">
+                                <div className={`flex items-center gap-2 text-[var(--color-text-secondary)] ${layoutMode === 'list' ? 'md:justify-end' : ''}`}>
                                     <MapPinIcon size={16} /> {session.room}
                                 </div>
                                 <div className="text-xs font-bold text-[var(--color-primary)]">{session.timeLabel}</div>
@@ -188,7 +346,7 @@ export const StudentScheduleView = memo(function StudentScheduleView({ classes }
                             className="w-full max-w-lg overflow-hidden rounded-t-3xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl sm:rounded-3xl"
                         >
                             <div className="bg-[var(--color-bg-soft)] p-6">
-                                <div className="mb-4 flex items-start justify-between">
+                                <div className="mb-4 flex items-center justify-between">
                                     <div>
                                         <Badge tone="info">{selectedSession.dateLabel}</Badge>
                                         <h3 className="mt-3 text-2xl font-black text-[var(--color-text)]">{selectedSession.title}</h3>
@@ -223,7 +381,7 @@ export const StudentScheduleView = memo(function StudentScheduleView({ classes }
                                         <InfoIcon size={20} className="text-blue-500" />
                                         <div className="min-w-0 flex-1">
                                             <p className="text-xs font-bold">{selectedSession.teacher_notes || 'Chưa có ghi chú từ giảng viên'}</p>
-                                            <p className="text-[10px] text-[var(--color-text-secondary)]">Dữ liệu từ bảng buổi học</p>
+                                            
                                         </div>
                                     </div>
                                 </div>
@@ -234,7 +392,7 @@ export const StudentScheduleView = memo(function StudentScheduleView({ classes }
                                         <FileIcon size={20} className="text-blue-500" />
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-xs font-bold">Xem trong mục Thư viện tài liệu</p>
-                                            <p className="text-[10px] text-[var(--color-text-secondary)]">Tài liệu được lấy từ cơ sở dữ liệu theo lớp</p>
+                                            
                                         </div>
                                     </div>
                                 </div>

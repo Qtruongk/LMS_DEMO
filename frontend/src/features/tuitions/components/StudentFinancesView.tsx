@@ -17,7 +17,6 @@ export const StudentFinancesView = memo(function StudentFinancesView({ tuitions 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[var(--color-border)] pb-4">
                 <div>
                     <h2 className="text-2xl font-black text-[var(--color-text)]">Học phí & Thanh toán</h2>
-                    <p className="text-sm text-[var(--color-text-secondary)] mt-1">Quản lý hóa đơn và các khoản phí cần đóng</p>
                 </div>
             </div>
 

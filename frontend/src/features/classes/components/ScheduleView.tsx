@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarIcon, ClockIcon, ChartIcon, XIcon } from '../../../components/shared/icons';
+import { CalendarIcon, ChartIcon, XIcon } from '../../../components/shared/icons';
 import { Badge, Field, Panel, PrimaryButton } from '../../../components/shared/ui';
 import type { ClassItem, ScheduleAdjustment } from '../../../types';
 import { ClassSideDrawer } from '../../../components/shared/ClassSideDrawer';
@@ -16,12 +16,46 @@ const DAYS_OF_WEEK = [
     { key: 'cn', label: 'Chủ Nhật', dayIndex: 0 },
 ];
 
+// Helper to format class time range with both start and end time
+const formatClassTimeRange = (hours?: string | null): { start: string; end: string; display: string } => {
+    if (!hours) {
+        return { start: '18:30', end: '20:30', display: '18:30 - 20:30' };
+    }
+    const clean = hours.trim();
+    if (clean.includes('-')) {
+        const parts = clean.split('-').map((s) => s.trim());
+        const start = parts[0] || '18:30';
+        const end = parts[1] || '20:30';
+        return { start, end, display: `${start} - ${end}` };
+    }
+    const match = clean.match(/(\d{1,2})[:h](\d{2})/);
+    if (match) {
+        const h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        const totalMin = h * 60 + m + 120; // default 2-hour duration
+        const endH = Math.floor(totalMin / 60) % 24;
+        const endM = totalMin % 60;
+        const start = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const end = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+        return { start, end, display: `${start} - ${end}` };
+    }
+    return { start: clean, end: '20:30', display: `${clean} - 20:30` };
+};
+
+// Convert "HH:MM" string to minutes from start of day
+const timeStringToMinutes = (t: string): number => {
+    const match = t.match(/(\d{1,2})[:h](\d{2})/);
+    if (!match) return 0;
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+};
+
 type ScheduleViewProps = {
     classes: ClassItem[];
     adjustments?: ScheduleAdjustment[];
     userRole?: string;
     createAdjustment?: (payload: Record<string, unknown>) => Promise<unknown>;
     deleteAdjustment?: (id: number) => Promise<unknown>;
+    onOpenModule?: (module: string, classId?: number) => void;
 };
 
 export function ScheduleView({
@@ -30,11 +64,19 @@ export function ScheduleView({
     userRole = 'student',
     createAdjustment,
     deleteAdjustment,
+    onOpenModule,
 }: ScheduleViewProps) {
     const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
-    const [scheduleTab, setScheduleTab] = useState<'fixed' | 'date_specific'>('date_specific');
+    const [scheduleTab, setScheduleTab] = useState<'fixed' | 'date_specific'>('fixed');
     const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
     const [selectedDrawerClass, setSelectedDrawerClass] = useState<ClassItem | null>(null);
+    const [now, setNow] = useState<Date>(new Date());
+    const [simulationMode, setSimulationMode] = useState<boolean>(false);
+
+    useEffect(() => {
+        const timer = setInterval(() => setNow(new Date()), 30000);
+        return () => clearInterval(timer);
+    }, []);
 
     if (userRole === 'student') {
         return <StudentScheduleView classes={classes} />;
@@ -48,6 +90,33 @@ export function ScheduleView({
     const filteredClasses = selectedBranch === 'ALL'
         ? classes
         : classes.filter((c) => (c.location || 'Cơ sở chính') === selectedBranch);
+
+    // Current minutes of the day (either real-time or simulated to 19:00 for demo)
+    const currentMinutes = simulationMode ? (19 * 60) : (now.getHours() * 60 + now.getMinutes());
+    const todayDayIndex = now.getDay() === 0 ? 0 : now.getDay() + 1;
+
+    const isClassHappeningWeekly = (classHours?: string | null, dayIndex?: number) => {
+        if (simulationMode) {
+            // In simulation mode, activate any class that occurs on this day and matches simulated time 19:00
+            const { start, end } = formatClassTimeRange(classHours);
+            const startMin = timeStringToMinutes(start);
+            const endMin = timeStringToMinutes(end);
+            return currentMinutes >= startMin && currentMinutes <= endMin;
+        }
+        if (dayIndex !== todayDayIndex) return false;
+        const { start, end } = formatClassTimeRange(classHours);
+        const startMin = timeStringToMinutes(start);
+        const endMin = timeStringToMinutes(end);
+        return currentMinutes >= startMin && currentMinutes <= endMin;
+    };
+
+    const isClassHappeningDateSpecific = (classHours?: string | null, isToday?: boolean) => {
+        if (!isToday && !simulationMode) return false;
+        const { start, end } = formatClassTimeRange(classHours);
+        const startMin = timeStringToMinutes(start);
+        const endMin = timeStringToMinutes(end);
+        return currentMinutes >= startMin && currentMinutes <= endMin;
+    };
 
     // Comprehensive day matcher function
     const isClassOnDay = (scheduleStr: string, dayIndex: number) => {
@@ -115,6 +184,11 @@ export function ScheduleView({
 
     const upcomingDays = generateUpcomingDays();
 
+    const weeklyOverview = useMemo(() => DAYS_OF_WEEK.map((day) => ({
+        ...day,
+        classes: getClassesForDayIndex(day.dayIndex).sort((a, b) => (a.class_hours || '').localeCompare(b.class_hours || '')),
+    })), [filteredClasses]);
+
     return (
         <div className="grid gap-6">
             {/* Header, Tab Switcher & Action Bar */}
@@ -125,7 +199,6 @@ export function ScheduleView({
                     </span>
                     <div>
                         <h2 className="text-lg font-bold text-[var(--color-text)]">Thời khóa biểu & Lịch Đột Xuất</h2>
-                        <p className="text-xs text-[var(--color-text-secondary)]">Quản lý lịch học cố định và các điều chỉnh đột xuất theo ngày thực tế</p>
                     </div>
                 </div>
 
@@ -136,8 +209,8 @@ export function ScheduleView({
                             type="button"
                             onClick={() => setScheduleTab('date_specific')}
                             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${scheduleTab === 'date_specific'
-                                    ? 'bg-[var(--color-bg-card)] text-[var(--color-primary)] shadow-xs'
-                                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
+                                ? 'bg-[var(--color-bg-card)] text-[var(--color-primary)] shadow-xs'
+                                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
                                 }`}
                         >
                             <CalendarIcon size={14} /> Lịch Theo Ngày & Đột Xuất
@@ -146,13 +219,40 @@ export function ScheduleView({
                             type="button"
                             onClick={() => setScheduleTab('fixed')}
                             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${scheduleTab === 'fixed'
-                                    ? 'bg-[var(--color-bg-card)] text-[var(--color-primary)] shadow-xs'
-                                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
+                                ? 'bg-[var(--color-bg-card)] text-[var(--color-primary)] shadow-xs'
+                                : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
                                 }`}
                         >
                             <ChartIcon size={14} /> Lịch Cố Định Hàng Tuần
                         </button>
                     </div>
+
+                    {/* Live time indicator / Test toggle */}
+                    <button
+                        type="button"
+                        onClick={() => setSimulationMode(!simulationMode)}
+                        className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
+                            simulationMode
+                                ? 'border-emerald-500 bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-500/30'
+                                : 'border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
+                        }`}
+                        title="Bật để xem trước hiệu ứng lớp học đang diễn ra (19:00)"
+                    >
+                        {simulationMode ? (
+                            <>
+                                <span className="relative flex h-2 w-2">
+                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
+                                    <span className="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
+                                </span>
+                                <span>Đang test giờ học (19:00)</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                                <span>Thử nghiệm: Đến giờ học</span>
+                            </>
+                        )}
+                    </button>
 
                     {/* Filter by Branch */}
                     <div className="flex items-center gap-2">
@@ -183,214 +283,176 @@ export function ScheduleView({
                 </div>
             </div>
 
-            {/* TAB 1: DATE SPECIFIC & AD-HOC ADJUSTMENT SCHEDULE VIEW */}
-            {scheduleTab === 'date_specific' ? (
-                <Panel title={`Lịch Học Theo Ngày Thực Tế & Đổi Lịch Đột Xuất ${selectedBranch !== 'ALL' ? `- ${selectedBranch}` : ''}`} className="p-0 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                            <thead className="border-b border-[var(--color-border)] bg-[var(--color-bg-soft)] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">
-                                <tr>
-                                    <th className="px-5 py-4 w-44 border-r border-[var(--color-border)]">Ngày Cụ Thể</th>
-                                    <th className="px-5 py-4">Lịch Học & Sự Kiện Đột Xuất Trực Tiếp</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[var(--color-border)] text-[var(--color-text)]">
-                                {upcomingDays.map((day) => {
-                                    // Find adjustments on this exact date
-                                    const dayAdjustments = adjustments.filter((a) => {
-                                        const adjDate = String(a.date).split('T')[0];
-                                        return adjDate === day.isoDate;
-                                    });
+            {scheduleTab === 'fixed' ? (
+                <Panel title={`Tổng quan thời khóa biểu tuần ${selectedBranch !== 'ALL' ? `- ${selectedBranch}` : ''}`}>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
+                        {weeklyOverview.map((day) => (
+                            <section key={day.key} className="min-w-0 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)]/50 p-3">
+                                <div className="mb-3 flex items-center justify-between gap-2 border-b border-[var(--color-border)] pb-2">
+                                    <span className="text-sm font-black text-[var(--color-text)]">{day.label}</span>
+                                    <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-black text-[var(--color-primary)]">{day.classes.length}</span>
+                                </div>
+                                <div className="grid gap-2">
+                                    {day.classes.length ? day.classes.map((item) => {
+                                        const isHappening = isClassHappeningWeekly(item.class_hours, day.dayIndex);
+                                        const timeInfo = formatClassTimeRange(item.class_hours);
 
-                                    return (
-                                        <tr key={day.isoDate} className={`transition duration-150 ${day.isToday ? 'bg-amber-500/5 font-medium' : 'hover:bg-[var(--color-bg-soft)]/40'}`}>
-                                            {/* Ngày Cụ Thể */}
-                                            <td className="px-5 py-4 border-r border-[var(--color-border)] bg-[var(--color-bg-soft)]/20 align-top">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`grid h-8 w-8 place-items-center rounded-xl font-extrabold text-xs shadow-xs ${day.isToday ? 'bg-amber-500 text-white' : 'bg-[var(--color-primary-soft)] text-[var(--color-primary)]'
-                                                        }`}>
-                                                        {day.dayName.slice(0, 3)}
+                                        return (
+                                            <button
+                                                key={`${day.key}-${item.id}`}
+                                                type="button"
+                                                onClick={() => setSelectedDrawerClass(item)}
+                                                className={`min-w-0 w-full overflow-hidden rounded-xl border p-2.5 text-left shadow-xs transition ${
+                                                    isHappening
+                                                        ? 'border-emerald-500 bg-emerald-50/90 dark:border-emerald-500 dark:bg-emerald-950/40 ring-2 ring-emerald-500/40 shadow-md'
+                                                        : 'border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-primary-border)] hover:bg-[var(--color-primary-soft)] hover:shadow-sm'
+                                                }`}
+                                            >
+                                                <div className="flex min-w-0 items-center justify-between gap-1.5">
+                                                    <span className={`min-w-0 flex-1 truncate text-xs font-black ${isHappening ? 'text-emerald-900 dark:text-emerald-100' : 'text-[var(--color-text)]'}`}>
+                                                        {item.name}
                                                     </span>
-                                                    <div>
-                                                        <p className="font-bold text-sm text-[var(--color-text)] leading-tight">{day.dayName}</p>
-                                                        <span className="font-mono text-xs text-[var(--color-text-muted)]">{day.formattedDate}</span>
+                                                    <span
+                                                        className={`shrink-0 truncate rounded-md px-1.5 py-0.5 font-mono text-[10px] font-black transition ${
+                                                            isHappening
+                                                                ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                                                                : 'bg-[var(--color-primary-soft)] text-[var(--color-primary)]'
+                                                        }`}
+                                                        title={timeInfo.display}
+                                                    >
+                                                        {timeInfo.display}
+                                                    </span>
+                                                </div>
+                                                {isHappening && (
+                                                    <div className="mt-1.5 flex items-center gap-1 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                                                        <span className="relative flex h-2 w-2">
+                                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                                                            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                                                        </span>
+                                                        <span>🟢 ĐANG DIỄN RA</span>
                                                     </div>
-                                                </div>
-                                                {day.isToday && (
-                                                    <span className="mt-2 inline-block rounded-md bg-amber-100 px-2 py-0.5 font-bold text-[10px] text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
-                                                        Hôm nay
-                                                    </span>
                                                 )}
-                                            </td>
-
-                                            {/* Các lớp học và điều chỉnh đột xuất */}
-                                            <td className="px-5 py-4 align-top">
-                                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                                    {/* Render Ad-hoc Adjustments first */}
-                                                    {dayAdjustments.map((adj) => (
-                                                        <div
-                                                            key={`adj-${adj.id}`}
-                                                            className={`relative rounded-2xl border p-3.5 shadow-sm transition ${adj.type === 'canceled'
-                                                                    ? 'border-red-300 bg-red-50/50 dark:border-red-900/60 dark:bg-red-950/40'
-                                                                    : adj.type === 'rescheduled'
-                                                                        ? 'border-amber-300 bg-amber-50/50 dark:border-amber-900/60 dark:bg-amber-950/40'
-                                                                        : 'border-blue-300 bg-blue-50/50 dark:border-blue-900/60 dark:bg-blue-950/40'
-                                                                }`}
-                                                        >
-                                                            {/* Action Delete Adjustment */}
-                                                            {(userRole === 'admin' || userRole === 'owner' || userRole === 'teacher') && (
-                                                                <button
-                                                                    type="button"
-                                                                    title="Xóa điều chỉnh này"
-                                                                    onClick={() => deleteAdjustment?.(adj.id)}
-                                                                    className="absolute top-2.5 right-2.5 rounded-full p-1 text-gray-400 hover:bg-black/10 hover:text-red-600 transition"
-                                                                >
-                                                                    <XIcon size={14} />
-                                                                </button>
-                                                            )}
-
-                                                            <div className="mb-2 flex items-center gap-1.5">
-                                                                <span className={`rounded-md px-2 py-0.5 font-bold text-[10px] uppercase tracking-wider ${adj.type === 'canceled'
-                                                                        ? 'bg-red-600 text-white'
-                                                                        : adj.type === 'rescheduled'
-                                                                            ? 'bg-amber-600 text-white'
-                                                                            : 'bg-blue-600 text-white'
-                                                                    }`}>
-                                                                    {adj.type === 'canceled' ? 'Báo Nghỉ / Hoãn' : adj.type === 'rescheduled' ? 'Đổi Giờ Đột Xuất' : 'Lịch Học Bù'}
-                                                                </span>
-                                                            </div>
-
-                                                            <h4 className="font-bold text-xs text-[var(--color-text)] leading-snug">{adj.class_name || 'Lớp học'}</h4>
-
-                                                            {adj.custom_hours && (
-                                                                <div className="my-1.5 font-mono text-xs font-bold text-amber-700 dark:text-amber-300">
-                                                                    Giờ mới: {adj.custom_hours}
-                                                                </div>
-                                                            )}
-
-                                                            {adj.reason && (
-                                                                <p className="mt-1 text-[11px] font-medium text-[var(--color-text-secondary)] italic">
-                                                                    💬 Lý do: {adj.reason}
-                                                                </p>
-                                                            )}
-                                                            <div className="mt-2 text-[10px] text-[var(--color-text-muted)]">📍 {adj.location || 'Cơ sở chính'}</div>
-                                                        </div>
-                                                    ))}
-
-                                                    {/* Render Regular Recurring Classes for this Day */}
-                                                    {day.dayClasses.map((item) => (
-                                                        <div
-                                                            key={`reg-${day.isoDate}-${item.id}`}
-                                                            className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-3.5 shadow-xs transition hover:border-[var(--color-primary-border)] hover:shadow-md"
-                                                        >
-                                                            <div className="mb-2 flex items-start justify-between gap-2 border-b border-[var(--color-border)] pb-2">
-                                                                <div>
-                                                                    <h4 className="font-bold text-xs text-[var(--color-text)] leading-snug">{item.name}</h4>
-                                                                    <span className="font-mono text-[10px] text-[var(--color-text-muted)]">{item.code}</span>
-                                                                </div>
-                                                                <Badge tone="neutral">{item.subject}</Badge>
-                                                            </div>
-
-                                                            <div className="mb-2 inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary-soft)] px-2.5 py-1 font-mono text-xs font-bold text-[var(--color-primary)]">
-                                                                <ClockIcon size={13} /> {item.class_hours || '18:30 - 20:30'}
-                                                            </div>
-
-                                                            <div className="grid gap-1 text-[11px] text-[var(--color-text-secondary)]">
-                                                                <div className="flex items-center gap-1.5 font-medium">
-                                                                    <span className="grid h-5 w-5 place-items-center rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold">
-                                                                        {(item.teacher_name || 'GV')[0]}
-                                                                    </span>
-                                                                    <span>{item.teacher_name || 'Chưa phân công'}</span>
-                                                                </div>
-                                                                <div className="text-[10px] text-[var(--color-text-muted)]">📍 {item.location || 'Cơ sở chính'}</div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-
-                                                    {!dayAdjustments.length && !day.dayClasses.length && (
-                                                        <span className="text-xs text-[var(--color-text-muted)] italic py-2">Không có lịch học trong ngày</span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                                <p className="mt-1 truncate text-[10px] font-semibold text-[var(--color-text-muted)]">{item.subject || item.code} • {item.location || 'Cơ sở chính'}</p>
+                                            </button>
+                                        );
+                                    }) : (
+                                        <p className="py-3 text-center text-[11px] italic text-[var(--color-text-muted)]">Không có lớp</p>
+                                    )}
+                                </div>
+                            </section>
+                        ))}
                     </div>
                 </Panel>
             ) : (
-                /* TAB 2: RECURRING WEEKLY MATRIX VIEW */
-                <Panel title={`Bảng Thời Khóa Biểu Cố Định Hàng Tuần ${selectedBranch !== 'ALL' ? `- ${selectedBranch}` : ''}`} className="p-0 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                            <thead className="border-b border-[var(--color-border)] bg-[var(--color-bg-soft)] text-[var(--color-text-muted)] uppercase tracking-wider font-semibold">
-                                <tr>
-                                    <th className="px-5 py-4 w-36 border-r border-[var(--color-border)]">Thứ Hàng Tuần</th>
-                                    <th className="px-5 py-4">Lớp Học Cố Định (Tên lớp, Giờ học, Giảng viên & Cơ sở)</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[var(--color-border)] text-[var(--color-text)]">
-                                {DAYS_OF_WEEK.map((day) => {
-                                    const dayClasses = getClassesForDayIndex(day.dayIndex);
-                                    return (
-                                        <tr key={day.key} className="transition duration-150 hover:bg-[var(--color-bg-soft)]/40">
-                                            <td className="px-5 py-4 font-bold text-sm border-r border-[var(--color-border)] bg-[var(--color-bg-soft)]/20 align-top">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)] text-xs font-extrabold">
-                                                        {day.label.slice(0, 3)}
-                                                    </span>
-                                                    <span>{day.label}</span>
-                                                </div>
-                                                <span className="mt-1 block text-[10px] font-medium text-[var(--color-text-muted)]">
-                                                    {dayClasses.length} lớp học
+                <Panel
+                    title={`Lịch Học Theo Ngày Thực Tế & Đổi Lịch Đột Xuất ${selectedBranch !== 'ALL' ? `- ${selectedBranch}` : ''}`}
+                >
+                    {upcomingDays.some((day) => day.dayClasses.length || adjustments.some((adjustment) => String(adjustment.date).split('T')[0] === day.isoDate)) ? (
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {upcomingDays.map((day) => {
+                                const dayAdjustments = adjustments.filter((adjustment) => String(adjustment.date).split('T')[0] === day.isoDate);
+                                if (!day.dayClasses.length && !dayAdjustments.length) return null;
+
+                                return (
+                                    <section
+                                        key={day.isoDate}
+                                        className={`min-w-0 overflow-hidden rounded-2xl border p-3 ${day.isToday
+                                            ? 'border-amber-300 bg-amber-50/60 dark:border-amber-700/60 dark:bg-amber-950/20'
+                                            : 'border-[var(--color-border)] bg-[var(--color-bg-soft)]/50'
+                                            }`}
+                                    >
+                                        <div className="mb-3 flex min-w-0 items-center justify-between gap-2 border-b border-[var(--color-border)] pb-2">
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-black text-[var(--color-text)]">{day.dayName}</p>
+                                                <p className="font-mono text-[11px] font-bold text-[var(--color-text-muted)]">{day.formattedDate}</p>
+                                            </div>
+                                            <div className="flex shrink-0 items-center gap-1">
+                                                {day.isToday && <Badge tone="warning" size="sm">Hôm nay</Badge>}
+                                                <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-black text-[var(--color-primary)]">
+                                                    {day.dayClasses.length + dayAdjustments.length}
                                                 </span>
-                                            </td>
+                                            </div>
+                                        </div>
 
-                                            <td className="px-5 py-4 align-top">
-                                                {dayClasses.length ? (
-                                                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                                        {dayClasses.map((item) => (
-                                                            <div
-                                                                key={`${day.key}-${item.id}`}
-                                                                className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-3.5 shadow-xs transition hover:border-[var(--color-primary-border)] hover:shadow-md"
-                                                            >
-                                                                <div className="mb-2 flex items-start justify-between gap-2 border-b border-[var(--color-border)] pb-2">
-                                                                    <div>
-                                                                        <h4 className="font-bold text-xs text-[var(--color-text)] leading-snug">{item.name}</h4>
-                                                                        <span className="font-mono text-[10px] text-[var(--color-text-muted)]">{item.code}</span>
-                                                                    </div>
-                                                                    <Badge tone="neutral">{item.subject}</Badge>
-                                                                </div>
-
-                                                                <div className="mb-2 inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary-soft)] px-2.5 py-1 font-mono text-xs font-bold text-[var(--color-primary)]">
-                                                                    <ClockIcon size={13} /> {item.class_hours || '18:30 - 20:30'}
-                                                                </div>
-
-                                                                <div className="grid gap-1.5 text-[11px] text-[var(--color-text-secondary)]">
-                                                                    <div className="flex items-center gap-1.5 font-medium">
-                                                                        <span className="grid h-5 w-5 place-items-center rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold">
-                                                                            {(item.teacher_name || 'GV')[0]}
-                                                                        </span>
-                                                                        <span>{item.teacher_name || 'Chưa phân công'}</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-1.5 font-medium text-[var(--color-text-muted)]">
-                                                                        <span>📍 {item.location || 'Cơ sở chính'}</span>
-                                                                    </div>
-                                                                </div>
+                                        <div className="grid gap-2">
+                                            {dayAdjustments.map((adjustment) => {
+                                                const tone = adjustment.type === 'canceled'
+                                                    ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200'
+                                                    : adjustment.type === 'rescheduled'
+                                                        ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200'
+                                                        : 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200';
+                                                const label = adjustment.type === 'canceled' ? 'Nghỉ học' : adjustment.type === 'rescheduled' ? 'Đổi lịch' : adjustment.type === 'makeup' ? 'Học bù' : 'Đột xuất';
+                                                return (
+                                                    <article key={`adjustment-${adjustment.id}`} className={`min-w-0 overflow-hidden rounded-xl border p-2.5 ${tone}`}>
+                                                        <div className="flex min-w-0 items-center justify-between gap-2">
+                                                            <div className="min-w-0">
+                                                                <span className="text-[10px] font-black uppercase tracking-wide">{label}</span>
+                                                                <p className="mt-0.5 truncate text-xs font-black">{adjustment.class_name || adjustment.class_code || 'Lớp học'}</p>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-xs text-[var(--color-text-muted)] italic">Không có lịch học cố định</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                                            {deleteAdjustment && ['teacher', 'admin', 'owner'].includes(userRole || '') && (
+                                                                <button type="button" onClick={() => deleteAdjustment(adjustment.id)} className="shrink-0 rounded-lg px-1.5 py-1 text-[10px] font-black hover:bg-white/60" title="Xóa điều chỉnh">Xóa</button>
+                                                            )}
+                                                        </div>
+                                                        <p className="mt-1 truncate text-[10px] font-bold opacity-80">{adjustment.custom_hours || 'Theo lịch cập nhật'} • {adjustment.location || 'Cơ sở chính'}</p>
+                                                        {adjustment.reason && <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed opacity-80">{adjustment.reason}</p>}
+                                                    </article>
+                                                );
+                                            })}
+
+                                            {day.dayClasses.map((item) => {
+                                                const isHappening = isClassHappeningDateSpecific(item.class_hours, day.isToday);
+                                                const timeInfo = formatClassTimeRange(item.class_hours);
+
+                                                return (
+                                                    <button
+                                                        key={`class-${day.isoDate}-${item.id}`}
+                                                        type="button"
+                                                        onClick={() => setSelectedDrawerClass(item)}
+                                                        className={`min-w-0 overflow-hidden rounded-xl border p-2.5 text-left shadow-xs transition ${
+                                                            isHappening
+                                                                ? 'border-emerald-500 bg-emerald-50/90 dark:border-emerald-500 dark:bg-emerald-950/40 ring-2 ring-emerald-500/40 shadow-md'
+                                                                : 'border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-primary-border)] hover:bg-[var(--color-primary-soft)]'
+                                                        }`}
+                                                    >
+                                                        <div className="flex min-w-0 items-center justify-between gap-1.5">
+                                                            <span className={`min-w-0 flex-1 truncate text-xs font-black ${isHappening ? 'text-emerald-900 dark:text-emerald-100' : 'text-[var(--color-text)]'}`}>
+                                                                {item.name}
+                                                            </span>
+                                                            <span
+                                                                className={`shrink-0 truncate rounded-md px-1.5 py-0.5 font-mono text-[10px] font-black transition ${
+                                                                    isHappening
+                                                                        ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                                                                        : 'bg-[var(--color-primary-soft)] text-[var(--color-primary)]'
+                                                                }`}
+                                                                title={timeInfo.display}
+                                                            >
+                                                                {timeInfo.display}
+                                                            </span>
+                                                        </div>
+                                                        {isHappening && (
+                                                            <div className="mt-1.5 flex items-center gap-1 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                                                                <span className="relative flex h-2 w-2">
+                                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                                                                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                                                                </span>
+                                                                <span>🟢 ĐANG DIỄN RA</span>
+                                                            </div>
+                                                        )}
+                                                        <p className="mt-1 truncate text-[10px] font-semibold text-[var(--color-text-muted)]">{item.subject || item.code} • {item.location || 'Cơ sở chính'}</p>
+                                                        <p className="mt-1 truncate text-[10px] text-[var(--color-text-secondary)]">{item.teacher_name || 'Chưa phân công'}</p>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </section>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-soft)] p-8 text-center text-sm font-semibold text-[var(--color-text-muted)]">
+                            Không có lớp hoặc lịch đột xuất trong 10 ngày tới.
+                        </div>
+                    )}
                 </Panel>
             )}
 
@@ -414,6 +476,7 @@ export function ScheduleView({
                 classItem={selectedDrawerClass}
                 onClose={() => setSelectedDrawerClass(null)}
                 user={{ id: 1, full_name: 'Giảng viên', role: (userRole as any) || 'teacher', username: 'teacher', status: 'active' }}
+                onOpenModule={onOpenModule}
             />
         </div>
     );
@@ -475,7 +538,6 @@ function AddAdjustmentModal({
                         </span>
                         <div>
                             <h3 className="text-xl font-bold text-[var(--color-text)]">Điều Chỉnh Lịch Đột Xuất</h3>
-                            <p className="text-xs text-[var(--color-text-secondary)]">Đổi giờ học, hoãn lớp hoặc đăng ký lịch học bù cho một ngày cụ thể</p>
                         </div>
                     </div>
                     <button

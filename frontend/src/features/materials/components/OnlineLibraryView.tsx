@@ -3,7 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Button, PrimaryButton } from '../../../components/shared/ui';
 import { BookIcon, DownloadIcon, FileIcon, InfoIcon, PlayIcon, SearchIcon, StarIcon, UploadIcon, XIcon } from '../../../components/shared/icons';
 import { API_URL } from '../../../services/api';
-import type { Material } from '../../../types';
+import type { ClassItem, Material, User } from '../../../types';
+import type { OnlineExam, QuestionItem } from '../../exams/types';
 
 type LibraryCategory = 'Sách' | 'Slide' | 'Ghi chú' | 'Nghiên cứu' | 'Video' | 'Biểu mẫu';
 type LibraryFilter = 'all' | 'favorite' | 'video' | 'template' | 'recent';
@@ -81,8 +82,21 @@ function formatTime(value?: string) {
     return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function OnlineLibraryView() {
+export function OnlineLibraryView({ classes = [], user }: { classes?: ClassItem[]; user?: User }) {
+    const [libraryTab, setLibraryTab] = useState<'materials' | 'fixed_exams'>('materials');
     const [materials, setMaterials] = useState<Material[]>([]);
+    const [libraryExams, setLibraryExams] = useState<OnlineExam[]>([]);
+    const [loadingExams, setLoadingExams] = useState(false);
+    const [examQuery, setExamQuery] = useState('');
+    const [examSubjectFilter, setExamSubjectFilter] = useState('all');
+    const [assignModalExam, setAssignModalExam] = useState<OnlineExam | null>(null);
+    const [assignClassId, setAssignClassId] = useState(classes[0]?.id ? String(classes[0].id) : '');
+    const [assignTitle, setAssignTitle] = useState('');
+    const [assignStartTime, setAssignStartTime] = useState('');
+    const [assignDueTime, setAssignDueTime] = useState('');
+    const [assignDuration, setAssignDuration] = useState('45');
+    const [assigning, setAssigning] = useState(false);
+    const [previewExamDetail, setPreviewExamDetail] = useState<{ exam: OnlineExam; questions: QuestionItem[] } | null>(null);
     const [loading, setLoading] = useState(false);
     const [query, setQuery] = useState('');
     const [filter, setFilter] = useState<LibraryFilter>('all');
@@ -117,9 +131,117 @@ export function OnlineLibraryView() {
         }
     }, []);
 
+    const loadLibraryExams = useCallback(async () => {
+        setLoadingExams(true);
+        try {
+            const currentId = user?.id || getCurrentUserId();
+            const res = await fetch(`${API_URL}/api/online-exams/library`, {
+                headers: currentId ? { 'x-user-id': String(currentId) } : undefined,
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setLibraryExams(data.exams ?? []);
+            }
+        } catch {
+            setLibraryExams([]);
+        } finally {
+            setLoadingExams(false);
+        }
+    }, [user?.id]);
+
     useEffect(() => {
         loadMaterials();
-    }, [loadMaterials]);
+        loadLibraryExams();
+    }, [loadMaterials, loadLibraryExams]);
+
+    const handleAssignExam = async () => {
+        if (!assignModalExam) return;
+        const targetClassId = Number(assignClassId);
+        if (!targetClassId) {
+            setNotice('Vui lòng chọn lớp học để giao bài.');
+            return;
+        }
+        setAssigning(true);
+        try {
+            const currentId = user?.id || getCurrentUserId();
+            const res = await fetch(`${API_URL}/api/online-exams/${assignModalExam.id}/assign-class`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(currentId ? { 'x-user-id': String(currentId) } : {}),
+                },
+                body: JSON.stringify({
+                    class_id: targetClassId,
+                    title: assignTitle.trim() || assignModalExam.title,
+                    start_time: assignStartTime || null,
+                    end_time: assignDueTime || null,
+                    duration_minutes: Number(assignDuration) || assignModalExam.duration_minutes || 45,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Không thể giao bài tập cho lớp.');
+            const targetClassName = classes.find((c) => c.id === targetClassId)?.name || `Lớp ${targetClassId}`;
+            setNotice(`Đã giao bài "${assignTitle.trim() || assignModalExam.title}" cho lớp ${targetClassName} thành công!`);
+            setAssignModalExam(null);
+            setTimeout(() => setNotice(''), 4500);
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : 'Có lỗi khi giao bài tập cho lớp.');
+        } finally {
+            setAssigning(false);
+        }
+    };
+
+    const handleDeleteExam = async (examId: number, title: string) => {
+        if (!window.confirm(`Bạn có chắc chắn muốn xóa bài tập "${title}" khỏi Thư viện không?`)) return;
+        try {
+            const currentId = user?.id || getCurrentUserId();
+            const res = await fetch(`${API_URL}/api/online-exams/${examId}`, {
+                method: 'DELETE',
+                headers: currentId ? { 'x-user-id': String(currentId) } : undefined,
+            });
+            if (res.ok) {
+                setNotice(`Đã xóa bài tập "${title}" khỏi Thư viện.`);
+                setLibraryExams((prev) => prev.filter((item) => item.id !== examId));
+                setTimeout(() => setNotice(''), 3000);
+            }
+        } catch {
+            setNotice('Không thể xóa bài tập khỏi thư viện.');
+        }
+    };
+
+    const handleViewExamDetail = async (exam: OnlineExam) => {
+        try {
+            const currentId = user?.id || getCurrentUserId();
+            const res = await fetch(`${API_URL}/api/online-exams/${exam.id}`, {
+                headers: currentId ? { 'x-user-id': String(currentId) } : undefined,
+            });
+            const data = await res.json();
+            if (res.ok && data.exam) {
+                setPreviewExamDetail({ exam: data.exam, questions: data.questions ?? [] });
+            }
+        } catch {
+            setNotice('Không thể xem chi tiết bài tập.');
+        }
+    };
+
+    const examSubjectOptions = useMemo(() => Array.from(new Set([
+        ...classes.map((c) => c.subject).filter(Boolean),
+        ...libraryExams.map((e) => e.subject).filter(Boolean),
+    ])).sort((a, b) => (a || '').localeCompare(b || '', 'vi')), [classes, libraryExams]);
+
+    const filteredLibraryExams = useMemo(() => {
+        return libraryExams.filter((exam) => {
+            if (examSubjectFilter !== 'all' && (exam.subject || 'Chung') !== examSubjectFilter) return false;
+            if (examQuery.trim()) {
+                const kw = examQuery.trim().toLowerCase();
+                const matchTitle = (exam.title || '').toLowerCase().includes(kw);
+                const matchSub = (exam.subject || '').toLowerCase().includes(kw);
+                const matchDesc = (exam.description || '').toLowerCase().includes(kw);
+                if (!matchTitle && !matchSub && !matchDesc) return false;
+            }
+            return true;
+        });
+    }, [libraryExams, examSubjectFilter, examQuery]);
 
     const enrichedLibrary = useMemo<LibraryItem[]>(() => materials.map((item, index) => {
         const descriptionText = item.description || item.note || 'Tài nguyên học tập đã được trung tâm cập nhật để học sinh tự học, xem lại và chuẩn bị trước buổi học.';
@@ -199,8 +321,148 @@ export function OnlineLibraryView() {
                 )}
             </AnimatePresence>
 
-            <section className="grid gap-4 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+            {/* Top Library Module Tab Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[2rem] border border-slate-200 bg-white p-3 shadow-sm sm:px-5">
+                <div className="flex rounded-2xl bg-slate-100 p-1 text-xs font-black">
+                    <button
+                        type="button"
+                        onClick={() => setLibraryTab('materials')}
+                        className={`flex items-center gap-2 rounded-xl px-4 py-2.5 transition ${libraryTab === 'materials' ? 'bg-red-900 text-white shadow-md' : 'text-slate-600 hover:text-slate-950'}`}
+                    >
+                        <BookIcon size={16} />
+                        <span>Kho tài liệu & Sách số</span>
+                        <span className="rounded-full bg-black/10 px-2 py-0.5 text-[10px]">{materials.length}</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setLibraryTab('fixed_exams')}
+                        className={`flex items-center gap-2 rounded-xl px-4 py-2.5 transition ${libraryTab === 'fixed_exams' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-600 hover:text-slate-950'}`}
+                    >
+                        <span>📝 Kho bài tập & Đề thi cố định</span>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${libraryTab === 'fixed_exams' ? 'bg-white/25 text-white' : 'bg-purple-100 text-purple-800'}`}>
+                            {libraryExams.length}
+                        </span>
+                    </button>
+                </div>
+                {libraryTab === 'fixed_exams' && (
+                    <span className="text-xs font-bold text-purple-700">
+                        ⚡ Chọn bài bất kỳ để giao nhanh cho lớp học khi đến bài tương ứng
+                    </span>
+                )}
+            </div>
+
+            {libraryTab === 'fixed_exams' ? (
+                /* Fixed Exams & Exercises Library View */
+                <section className="grid gap-5">
+                    <div className="grid gap-3 rounded-[2rem] border border-purple-200/80 bg-white p-4 shadow-sm sm:p-5">
+                        <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
+                            <div className="relative">
+                                <SearchIcon size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    value={examQuery}
+                                    onChange={(e) => setExamQuery(e.target.value)}
+                                    placeholder="Tìm bài tập cố định trong Thư viện theo tên bài, môn học..."
+                                    className="min-h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-purple-300 focus:bg-white focus:ring-4 focus:ring-purple-50"
+                                />
+                            </div>
+                            <select
+                                value={examSubjectFilter}
+                                onChange={(e) => setExamSubjectFilter(e.target.value)}
+                                className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-950 outline-none focus:border-purple-300"
+                            >
+                                <option value="all">Tất cả môn học</option>
+                                {examSubjectOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {loadingExams ? (
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                                <div key={i} className="h-44 animate-pulse rounded-[2rem] bg-slate-100" />
+                            ))}
+                        </div>
+                    ) : filteredLibraryExams.length > 0 ? (
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {filteredLibraryExams.map((exam) => (
+                                <article
+                                    key={exam.id}
+                                    className="flex flex-col justify-between rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-purple-300 hover:shadow-md"
+                                >
+                                    <div>
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <span className="rounded-xl bg-purple-100 px-3 py-1 text-xs font-black text-purple-700">
+                                                {exam.subject || 'Chung'}
+                                            </span>
+                                            <span className="rounded-xl bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                                                ⏱️ {exam.duration_minutes} phút
+                                            </span>
+                                        </div>
+                                        <h3 className="mt-3 text-base font-black text-slate-950 line-clamp-2">
+                                            {exam.title}
+                                        </h3>
+                                        <p className="mt-1 text-xs font-medium text-slate-500 line-clamp-2">
+                                            {exam.description || 'Bài tập cố định trong Thư viện'}
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-5 border-t border-slate-100 pt-4">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-black text-emerald-700">
+                                                📝 {exam.question_count ?? 0} câu hỏi cố định
+                                            </span>
+                                            <span className="font-bold text-slate-400">
+                                                Điểm auto thang 10
+                                            </span>
+                                        </div>
+                                        <div className="mt-3 flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleViewExamDetail(exam)}
+                                                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 whitespace-nowrap"
+                                            >
+                                                Xem câu
+                                            </button>
+                                            <PrimaryButton
+                                                type="button"
+                                                onClick={() => {
+                                                    setAssignModalExam(exam);
+                                                    setAssignTitle(exam.title);
+                                                    setAssignDuration(String(exam.duration_minutes || 45));
+                                                    setAssignStartTime('');
+                                                    setAssignDueTime('');
+                                                }}
+                                                className="flex-1 rounded-xl px-2.5 py-1.5 text-xs font-black !bg-purple-600 hover:!bg-purple-700 shadow-sm whitespace-nowrap"
+                                            >
+                                                Giao cho lớp
+                                            </PrimaryButton>
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleDeleteExam(exam.id, exam.title)}
+                                                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                                                title="Xóa bài tập khỏi Thư viện"
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="grid place-items-center rounded-[2rem] border border-dashed border-slate-200 bg-white p-12 text-center">
+                            <BookIcon size={42} className="text-slate-300" />
+                            <h3 className="mt-3 text-lg font-black text-slate-950">Chưa có bài tập cố định trong Thư viện</h3>
+                            <p className="mt-1 max-w-md text-sm font-semibold text-slate-500">
+                                Giáo viên có thể vào phần Ngân hàng câu hỏi → Chọn chức năng "Tạo cụm bài cố định" để đưa các bài tập vào Thư viện.
+                            </p>
+                        </div>
+                    )}
+                </section>
+            ) : (
+                <>
+                    <section className="grid gap-4 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                        <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
                     <div className="relative">
                         <SearchIcon size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
@@ -270,7 +532,7 @@ export function OnlineLibraryView() {
                                 transition={{ delay: index * 0.03 }}
                                 className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:border-red-200 hover:shadow-xl"
                             >
-                                <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center justify-between gap-3">
                                     <div className="flex min-w-0 items-center gap-3">
                                         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-900">
                                             {item.category === 'Video' ? <PlayIcon size={22} /> : item.category === 'Biểu mẫu' ? <FileIcon size={22} /> : <BookIcon size={22} />}
@@ -289,7 +551,6 @@ export function OnlineLibraryView() {
                                 </div>
 
                                 <h3 className="mt-4 line-clamp-2 min-h-12 text-base font-black tracking-[-0.02em] text-slate-950">{item.title}</h3>
-                                <p className="mt-2 line-clamp-3 text-sm font-semibold leading-6 text-slate-600">{item.descriptionText}</p>
 
                                 <div className="mt-4 flex flex-wrap gap-2">
                                     {item.tags.map((tag) => <span key={tag} className="rounded-full bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-500">#{tag}</span>)}
@@ -318,6 +579,203 @@ export function OnlineLibraryView() {
                     </div>
                 )}
             </section>
+                </>
+            )}
+
+            {/* Modal Giao bài tập cho lớp */}
+            {assignModalExam && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+                    <div className="w-full max-w-lg overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                            <div>
+                                <span className="rounded-lg bg-purple-100 px-2 py-0.5 text-[10px] font-black uppercase text-purple-700">
+                                    Thư viện → Lớp học
+                                </span>
+                                <h3 className="text-base font-black text-slate-950">
+                                    Giao bài tập cho lớp học
+                                </h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setAssignModalExam(null)}
+                                className="grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="grid gap-4 p-6 text-xs font-bold text-slate-600">
+                            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
+                                <p className="text-[11px] text-slate-400">Bài tập nguồn trong Thư viện:</p>
+                                <p className="mt-0.5 text-sm font-black text-slate-950">{assignModalExam.title}</p>
+                                <p className="mt-1 text-xs text-purple-700 font-semibold">
+                                    {assignModalExam.question_count ?? 0} câu hỏi cố định • Môn {assignModalExam.subject || 'Chung'} • Điểm tự động tính thang 10
+                                </p>
+                            </div>
+
+                            <label className="grid gap-1.5">
+                                Lớp học nhận bài *
+                                <select
+                                    value={assignClassId}
+                                    onChange={(e) => setAssignClassId(e.target.value)}
+                                    className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none focus:border-purple-300"
+                                >
+                                    {classes.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.name} • Môn {c.subject}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label className="grid gap-1.5">
+                                Tên bài hiển thị cho lớp
+                                <input
+                                    type="text"
+                                    value={assignTitle}
+                                    onChange={(e) => setAssignTitle(e.target.value)}
+                                    placeholder={assignModalExam.title}
+                                    className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none focus:border-purple-300"
+                                />
+                            </label>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <label className="grid gap-1.5">
+                                    Thời gian mở bài (tùy chọn)
+                                    <input
+                                        type="datetime-local"
+                                        value={assignStartTime}
+                                        onChange={(e) => setAssignStartTime(e.target.value)}
+                                        className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-950 outline-none focus:border-purple-300"
+                                    />
+                                </label>
+                                <label className="grid gap-1.5">
+                                    Hạn chót nộp bài (tùy chọn)
+                                    <input
+                                        type="datetime-local"
+                                        value={assignDueTime}
+                                        onChange={(e) => setAssignDueTime(e.target.value)}
+                                        className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-950 outline-none focus:border-purple-300"
+                                    />
+                                </label>
+                            </div>
+
+                            <label className="grid gap-1.5">
+                                Thời lượng làm bài (phút)
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={assignDuration}
+                                    onChange={(e) => setAssignDuration(e.target.value)}
+                                    className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-950 outline-none focus:border-purple-300"
+                                />
+                            </label>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50 px-6 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setAssignModalExam(null)}
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700"
+                            >
+                                Hủy
+                            </button>
+                            <PrimaryButton
+                                type="button"
+                                onClick={handleAssignExam}
+                                disabled={assigning}
+                                className="rounded-2xl px-5 py-2 text-xs font-black !bg-purple-600 hover:!bg-purple-700"
+                            >
+                                {assigning ? 'Đang giao bài...' : 'Xác nhận giao bài cho lớp'}
+                            </PrimaryButton>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Xem chi tiết câu hỏi bài tập */}
+            {previewExamDetail && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+                    <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="rounded-lg bg-purple-100 px-2 py-0.5 text-[10px] font-black uppercase text-purple-700">
+                                        {previewExamDetail.exam.subject || 'Chung'}
+                                    </span>
+                                    <h3 className="text-base font-black text-slate-950">
+                                        {previewExamDetail.exam.title}
+                                    </h3>
+                                </div>
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                    {previewExamDetail.questions.length} câu hỏi cố định • ⏱️ {previewExamDetail.exam.duration_minutes} phút • Thang 10 tự động
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setPreviewExamDetail(null)}
+                                className="grid h-8 w-8 place-items-center rounded-full text-slate-400 hover:bg-slate-100"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="flex-1 space-y-3 overflow-y-auto p-6">
+                            {previewExamDetail.questions.map((q, idx) => (
+                                <div key={q.id || idx} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs">
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-black text-slate-900">Câu #{idx + 1}</span>
+                                        <span className="font-bold text-purple-700">{(10 / previewExamDetail.questions.length).toFixed(2)} điểm</span>
+                                    </div>
+                                    <p className="mt-2 text-sm font-bold text-slate-950 whitespace-pre-wrap">{q.question_text}</p>
+                                    {q.options?.length ? (
+                                        <div className="mt-2.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                            {q.options.map((opt) => (
+                                                <div key={opt.id} className="rounded-xl bg-white px-3 py-1.5 font-semibold text-slate-700 border border-slate-200/60">
+                                                    <span className="font-black text-slate-950">{opt.id}.</span> {opt.text}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : null}
+                                    {q.correct_answers?.length ? (
+                                        <p className="mt-2.5 font-black text-emerald-700">
+                                            Đáp án đúng: {q.correct_answers.join(', ')}
+                                        </p>
+                                    ) : null}
+                                    {q.grading_guide ? (
+                                        <p className="mt-1 font-semibold text-blue-700">
+                                            💡 Hướng dẫn/Giải thích: {q.grading_guide}
+                                        </p>
+                                    ) : null}
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-6 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setPreviewExamDetail(null)}
+                                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700"
+                            >
+                                Đóng
+                            </button>
+                            <PrimaryButton
+                                type="button"
+                                onClick={() => {
+                                    const examToAssign = previewExamDetail.exam;
+                                    setPreviewExamDetail(null);
+                                    setAssignModalExam(examToAssign);
+                                    setAssignTitle(examToAssign.title);
+                                    setAssignDuration(String(examToAssign.duration_minutes || 45));
+                                }}
+                                className="rounded-2xl px-5 py-2 text-xs font-black !bg-purple-600 hover:!bg-purple-700"
+                            >
+                                Giao bài này cho lớp
+                            </PrimaryButton>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <AnimatePresence>
                 {previewItem && (
@@ -331,7 +789,6 @@ export function OnlineLibraryView() {
                                     <div>
                                         <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-slate-600">{previewItem.category}</span>
                                         <h3 className="mt-3 text-xl font-black tracking-[-0.03em] text-slate-950">{previewItem.title}</h3>
-                                        <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{previewItem.descriptionText}</p>
                                     </div>
                                 </div>
                             </div>

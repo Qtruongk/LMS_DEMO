@@ -173,10 +173,15 @@ export function MessageIcon(props: IconProps) {
 /** Map from string key to icon component — used by sidebar/nav */
 export const iconMap: Record<string, (props: IconProps) => JSX.Element> = {
     dashboard: DashboardIcon,
+    accounts: UsersIcon,
     classes: BookIcon,
     sessions: ClockIcon,
     materials: FileIcon,
+    attendance: ClockIcon,
+    assignments: CheckIcon,
+    'class-operations': BookIcon,
     tests: CheckIcon,
+    gradebook: ChartIcon,
     results: ChartIcon,
     notifications: BellIcon,
     schedule: CalendarIcon,
@@ -185,6 +190,12 @@ export const iconMap: Record<string, (props: IconProps) => JSX.Element> = {
     progress: TrendIcon,
     tuition: WalletIcon,
     reports: ReportIcon,
+    finance: WalletIcon,
+    'service-quality': ReportIcon,
+    'data-analytics': TrendIcon,
+    'teaching-report': ReportIcon,
+    'class-report': ReportIcon,
     feedbacks: MessageIcon,
     library: BookIcon,
+    requests: BellIcon,
 };

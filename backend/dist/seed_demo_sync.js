@@ -232,8 +232,8 @@ async function main() {
         }
         for (const classId of classIds) {
             for (let i = 0; i < studentIds.length; i += 1) {
-                const status = i === 2 ? 'absent' : i === 3 ? 'late' : i === 4 ? 'excused' : 'present';
-                const note = i === 2 ? 'Chưa điểm danh' : i === 3 ? 'Đến muộn 10 phút' : i === 4 ? 'Nghỉ có phép từ phụ huynh' : 'Có mặt đúng giờ';
+                const status = i === 2 ? 'absent' : i === 3 ? 'late' : 'present';
+                const note = i === 2 ? 'Chưa điểm danh' : i === 3 ? 'Đến muộn 10 phút' : 'Có mặt đúng giờ';
                 await client.query(`INSERT INTO attendance (class_id, student_id, date, status, note)
                      VALUES ($1,$2,CURRENT_DATE,$3,$4)
                      ON CONFLICT (class_id, student_id, date) DO UPDATE SET status = EXCLUDED.status, note = EXCLUDED.note`, [classId, studentIds[i], status, note]);

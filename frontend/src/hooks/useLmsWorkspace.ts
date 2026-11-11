@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { API_URL } from '../services/api';
 import type { ClassDetail, ClassItem, NotificationItem, ScheduleAdjustment, Tuition, User, WorkspaceSummary } from '../types';
 
-type AccountForm = { username: string; password: string };
+type AccountForm = { full_name?: string; username: string; password: string };
 
 export function useLmsWorkspace() {
     const [user, setUser] = useState<User | null>(() => {
@@ -18,9 +18,9 @@ export function useLmsWorkspace() {
     const [tuitions, setTuitions] = useState<Tuition[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [message, setMessage] = useState('');
-    const [loginForm, setLoginForm] = useState<AccountForm>({ username: 'admin', password: 'admin123' });
-    const [studentForm, setStudentForm] = useState<AccountForm>({ username: '', password: '' });
-    const [teacherForm, setTeacherForm] = useState<AccountForm>({ username: '', password: '' });
+    const [loginForm, setLoginForm] = useState({ username: 'admin', password: 'admin123' });
+    const [studentForm, setStudentForm] = useState<AccountForm>({ full_name: '', username: '', password: '' });
+    const [teacherForm, setTeacherForm] = useState<AccountForm>({ full_name: '', username: '', password: '' });
 
     const headers = useMemo(() => ({ 'Content-Type': 'application/json', ...(user ? { 'x-user-id': String(user.id) } : {}) }), [user]);
 
@@ -33,19 +33,27 @@ export function useLmsWorkspace() {
 
     const [adjustments, setAdjustments] = useState<ScheduleAdjustment[]>([]);
 
+    const reloadNotifications = useCallback(async function reloadNotifications(currentUser = user) {
+        if (!currentUser) return [];
+        const authHeaders = { 'Content-Type': 'application/json', 'x-user-id': String(currentUser.id) };
+        const notificationRes = await fetch(`${API_URL}/api/notifications`, { headers: authHeaders }).then((r) => r.json());
+        const nextNotifications = notificationRes.notifications ?? [];
+        setNotifications(nextNotifications);
+        return nextNotifications;
+    }, [user]);
+
     const loadWorkspace = useCallback(async function loadWorkspace(currentUser = user) {
         if (!currentUser) return;
         const authHeaders = { 'Content-Type': 'application/json', 'x-user-id': String(currentUser.id) };
-        const [summaryRes, classRes, notificationRes, adjRes] = await Promise.all([
+        const [summaryRes, classRes, adjRes] = await Promise.all([
             fetch(`${API_URL}/api/summary`, { headers: authHeaders }).then((r) => r.json()),
             fetch(`${API_URL}/api/classes`, { headers: authHeaders }).then((r) => r.json()),
-            fetch(`${API_URL}/api/notifications`, { headers: authHeaders }).then((r) => r.json()),
             fetch(`${API_URL}/api/schedule/adjustments`, { headers: authHeaders }).then((r) => r.json()).catch(() => ({ adjustments: [] })),
         ]);
         setSummary(summaryRes.roleMetrics ?? {});
         setClasses(classRes.classes ?? []);
-        setNotifications(notificationRes.notifications ?? []);
         setAdjustments(adjRes.adjustments ?? []);
+        await reloadNotifications(currentUser);
         const firstId = classRes.classes?.[0]?.id ?? null;
         setSelectedClassId((old) => old ?? firstId);
         if (currentUser.role === 'admin' || currentUser.role === 'owner') {
@@ -57,7 +65,7 @@ export function useLmsWorkspace() {
             const userRes = await fetch(`${API_URL}/api/users?role=student`, { headers: authHeaders }).then((r) => r.json());
             setUsers(userRes.users ?? []);
         }
-    }, [user]);
+    }, [reloadNotifications, user]);
 
     useEffect(() => {
         loadWorkspace().catch(console.error);
@@ -93,7 +101,7 @@ export function useLmsWorkspace() {
         event.preventDefault();
         await api('/api/users/student', { method: 'POST', body: JSON.stringify(studentForm) });
         setMessage('Đã tạo tài khoản học sinh thành công.');
-        setStudentForm({ username: '', password: '' });
+        setStudentForm({ full_name: '', username: '', password: '' });
         await loadWorkspace();
     }
 
@@ -101,7 +109,40 @@ export function useLmsWorkspace() {
         event.preventDefault();
         await api('/api/users/teacher', { method: 'POST', body: JSON.stringify(teacherForm) });
         setMessage('Đã tạo tài khoản giáo viên thành công.');
-        setTeacherForm({ username: '', password: '' });
+        setTeacherForm({ full_name: '', username: '', password: '' });
+        await loadWorkspace();
+    }
+
+    async function deleteUser(id: number) {
+        const res = await api<{ message: string }>(`/api/users/${id}`, { method: 'DELETE' });
+        setMessage(res.message);
+        await loadWorkspace();
+    }
+
+    async function deleteUsersBulk(ids: number[]) {
+        const res = await api<{ message: string }>('/api/users', {
+            method: 'DELETE',
+            body: JSON.stringify({ ids })
+        });
+        setMessage(res.message);
+        await loadWorkspace();
+    }
+
+    async function updateUser(id: number, payload: Partial<User>) {
+        const res = await api<{ message: string }>(`/api/users/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload)
+        });
+        setMessage(res.message);
+        await loadWorkspace();
+    }
+
+    async function changeUserClass(id: number, classId: number | null) {
+        const res = await api<{ message: string }>(`/api/users/${id}/class`, {
+            method: 'PUT',
+            body: JSON.stringify({ class_id: classId }),
+        });
+        setMessage(res.message);
         await loadWorkspace();
     }
 
@@ -160,6 +201,16 @@ export function useLmsWorkspace() {
         return res;
     }
 
+    async function markNotificationRead(id: number) {
+        await api(`/api/notifications/${id}/read`, { method: 'POST' });
+        setNotifications((items) => items.map((item) => item.id === id ? { ...item, is_read: true } : item));
+    }
+
+    async function markAllNotificationsRead() {
+        await api('/api/notifications/read-all', { method: 'POST' });
+        setNotifications((items) => items.map((item) => ({ ...item, is_read: true })));
+    }
+
     function logout() {
         localStorage.removeItem('vat_user');
         setUser(null);
@@ -173,6 +224,9 @@ export function useLmsWorkspace() {
         classDetail,
         summary,
         notifications,
+        reloadNotifications,
+        markNotificationRead,
+        markAllNotificationsRead,
         tuitions,
         users,
         adjustments,
@@ -189,6 +243,10 @@ export function useLmsWorkspace() {
         handleLogin,
         createStudent,
         createTeacher,
+        deleteUser,
+        deleteUsersBulk,
+        updateUser,
+        changeUserClass,
         importUsersCsv,
         createClass,
         deleteClass,

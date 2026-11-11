@@ -179,8 +179,6 @@ async function main() {
 
         const teacherProfiles = [
             ['xuanminh', 'xuanminh123', 'Giảng viên Xuân Minh', '0908123456', 'Cơ khí Ô tô', 'Phụ trách kỹ thuật ô tô, truyền lực và chẩn đoán lỗi.'],
-            ['thanhha', 'thanhha123', 'Giảng viên Thanh Hà', '0908123499', 'Điện - Điện tử Ô tô', 'Phụ trách điện ô tô, cảm biến và mạch điều khiển.'],
-            ['quanghuy', 'quanghuy123', 'Giảng viên Quang Huy', '0908123488', 'Dịch vụ xưởng', 'Phụ trách quy trình dịch vụ, an toàn và thực hành xưởng.'],
         ] as const;
         const teacherIds: number[] = [];
         for (const [username, password, fullName, phone, specialty, note] of teacherProfiles) {
@@ -217,10 +215,10 @@ async function main() {
 
         const classSeeds = [
             ['XM-AUTO-01', 'Kỹ thuật Ô tô A1', 'Kỹ thuật Ô tô', teacherIds[0], 'Thứ 2, 4 • 19:30 - 21:00', '19:30 - 21:00', 'Phòng VAT-201', 'Lớp nền tảng về truyền lực, ly hợp, hộp số và quy trình kiểm tra an toàn.', 48],
-            ['XM-ELEC-01', 'Điện Ô tô B1', 'Điện Ô tô', teacherIds[1], 'Thứ 3, 5 • 18:00 - 20:00', '18:00 - 20:00', 'Phòng VAT-203', 'Lớp thực hành mạch điện, cảm biến, khởi động và hệ thống sạc.', 42],
+            ['XM-ELEC-01', 'Điện Ô tô B1', 'Điện Ô tô', teacherIds[0], 'Thứ 3, 5 • 18:00 - 20:00', '18:00 - 20:00', 'Phòng VAT-203', 'Lớp thực hành mạch điện, cảm biến, khởi động và hệ thống sạc.', 42],
             ['XM-DIAG-01', 'Chẩn đoán Hệ thống C1', 'Chẩn đoán lỗi Ô tô', teacherIds[0], 'Thứ 7 • 08:30 - 11:30', '08:30 - 11:30', 'Xưởng thực hành VAT', 'Lớp sử dụng máy đọc lỗi OBD-II và phân tích quy trình chẩn đoán.', 57],
-            ['XM-SERVICE-01', 'Cố vấn Dịch vụ D1', 'Dịch vụ Ô tô', teacherIds[2], 'Chủ nhật • 14:00 - 17:00', '14:00 - 17:00', 'Phòng VAT-301', 'Lớp kỹ năng tiếp nhận xe, báo giá, chăm sóc khách hàng và xử lý tình huống.', 35],
-            ['XM-HYBRID-01', 'Công nghệ Hybrid E1', 'Hybrid & EV', teacherIds[1], 'Thứ 6 • 18:30 - 21:00', '18:30 - 21:00', 'Lab Điện cao áp VAT', 'Lớp nhập môn xe hybrid, an toàn điện cao áp và pin HV.', 22],
+            ['XM-SERVICE-01', 'Cố vấn Dịch vụ D1', 'Dịch vụ Ô tô', teacherIds[0], 'Chủ nhật • 14:00 - 17:00', '14:00 - 17:00', 'Phòng VAT-301', 'Lớp kỹ năng tiếp nhận xe, báo giá, chăm sóc khách hàng và xử lý tình huống.', 35],
+            ['XM-HYBRID-01', 'Công nghệ Hybrid E1', 'Hybrid & EV', teacherIds[0], 'Thứ 6 • 18:30 - 21:00', '18:30 - 21:00', 'Lab Điện cao áp VAT', 'Lớp nhập môn xe hybrid, an toàn điện cao áp và pin HV.', 22],
         ] as const;
         const classIds: number[] = [];
         for (const [code, name, subject, teacherId, schedule, classHours, location, description, progress] of classSeeds) {
@@ -330,8 +328,8 @@ async function main() {
             const dates = [-14, -10, -7, -3, -1, 0];
             for (const [dateIndex, offset] of dates.entries()) {
                 for (let i = 0; i < roster.rows.length; i += 1) {
-                    const status = (i + dateIndex) % 11 === 0 ? 'absent' : (i + dateIndex) % 7 === 0 ? 'excused' : (i + dateIndex) % 5 === 0 ? 'late' : 'present';
-                    const note = status === 'present' ? 'Có mặt đúng giờ' : status === 'late' ? 'Đến muộn 10 phút' : status === 'excused' ? 'Nghỉ có phép, đã báo trước' : 'Vắng không phép, cần giảng viên nhắc lại';
+                    const status = (i + dateIndex) % 11 === 0 ? 'absent' : (i + dateIndex) % 5 === 0 ? 'late' : 'present';
+                    const note = status === 'present' ? 'Có mặt đúng giờ' : status === 'late' ? 'Đến muộn 10 phút' : 'Vắng mặt, cần giảng viên nhắc lại';
                     await client.query(
                         `INSERT INTO attendance (class_id, student_id, date, status, note)
                          VALUES ($1,$2,$3::date,$4,$5)
@@ -434,7 +432,7 @@ async function main() {
                  SELECT $1::text,$2::text,$3::int,$4::text,'Đọc kỹ đề, làm bài trung thực và nộp trước hạn.',now() - interval '1 day',now() + interval '14 days',now() + interval '7 days',$5::int,'published',$6::int,true,false,$7::jsonb
                  WHERE NOT EXISTS (SELECT 1 FROM online_exams WHERE title = $1::text AND class_id = $3::int)
                  RETURNING id`,
-                [title, subject, classId, description, duration, teacherIds[0], JSON.stringify(teacherIds)]
+                [title, subject, classId, description, duration, teacherIds[0], JSON.stringify([teacherIds[0]])]
             );
             if (rows[0]?.id) examRows.push(Number(rows[0].id));
             else {

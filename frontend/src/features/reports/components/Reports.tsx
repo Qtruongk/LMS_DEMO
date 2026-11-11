@@ -4,7 +4,7 @@ import { BookIcon, WalletIcon, DollarSignIcon, TrendingUpIcon, BriefcaseIcon, Ch
 import type { ClassItem, Tuition } from '../../../types';
 import { formatMoney } from '../../../utils/format';
 
-export function Reports({ classes, tuitions }: { classes: ClassItem[]; tuitions: Tuition[] }) {
+export function Reports({ classes, tuitions }: { classes: ClassItem[]; tuitions: Tuition[]; section?: string; user?: any; }) {
     const [periodTab, setPeriodTab] = useState<'month' | 'year'>('month');
 
     // Total Tuition calculations
@@ -58,7 +58,7 @@ export function Reports({ classes, tuitions }: { classes: ClassItem[]; tuitions:
             <div className="grid gap-4 sm:grid-cols-2">
                 {overviewCards.map(({ label, value, icon: IconComponent, tone }) => (
                     <Panel key={label} className="stat-card group transition hover:-translate-y-1 hover:shadow-md">
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">{label}</p>
                                 <b className="mt-2 block text-2xl tracking-tight text-[var(--color-text)] sm:text-3xl">{value}</b>
@@ -82,7 +82,6 @@ export function Reports({ classes, tuitions }: { classes: ClassItem[]; tuitions:
                     </span>
                     <div>
                         <h2 className="text-lg font-bold text-[var(--color-text)]">Báo cáo Tài chính Đào tạo</h2>
-                        <p className="text-xs text-[var(--color-text-secondary)]">Theo dõi doanh thu, lợi nhuận, chi phí nhân viên, số tiền đã thanh toán & còn lại</p>
                     </div>
                 </div>
 
@@ -114,7 +113,7 @@ export function Reports({ classes, tuitions }: { classes: ClassItem[]; tuitions:
             </div>
 
             {/* Financial Report Panel */}
-            <Panel title={currentFinancials.title} subtitle={currentFinancials.subtitle}>
+            <Panel title={currentFinancials.title}>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     {/* 1. Doanh thu */}
                     <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4.5 transition hover:shadow-md dark:border-blue-900/50 dark:bg-blue-950/40">

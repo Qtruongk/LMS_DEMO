@@ -6,6 +6,11 @@ import type { ClassItem } from '../../../types';
 type StudentClassesProps = {
     classes: ClassItem[];
     onNavigate?: (module: string) => void;
+    selectedClassId?: number | null;
+    setSelectedClassId?: (id: number) => void;
+    detail?: any;
+    studentView?: string;
+    user?: any;
 };
 
 const formatDate = (value?: string) => {
@@ -31,9 +36,6 @@ export const StudentClasses = memo(function StudentClasses({ classes }: StudentC
                         <h1 className="mt-4 max-w-3xl text-3xl font-black leading-[1.06] tracking-[-0.055em] text-slate-950 sm:text-5xl dark:text-slate-950">
                             Xem nhanh các lớp bạn đang theo học.
                         </h1>
-                        <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-slate-600 sm:text-base dark:text-slate-600">
-                            Trang này được tối giản đúng nhu cầu của học sinh: chỉ tập trung vào lớp đang học, giáo viên, lịch học, địa điểm và tiến độ để dễ đọc trên cả điện thoại.
-                        </p>
                     </div>
 
                     <div className="rounded-[28px] border border-slate-100 bg-slate-50 p-4 shadow-sm dark:border-slate-100 dark:bg-slate-50">
@@ -66,9 +68,6 @@ export const StudentClasses = memo(function StudentClasses({ classes }: StudentC
                         <BookIcon size={26} />
                     </span>
                     <h2 className="mt-4 text-xl font-black text-slate-950 dark:text-slate-950">Bạn chưa có lớp đang học</h2>
-                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-600">
-                        Khi trung tâm xếp lớp, thông tin lớp học sẽ hiển thị tại đây để bạn theo dõi nhanh.
-                    </p>
                 </section>
             ) : (
                 <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -81,7 +80,7 @@ export const StudentClasses = memo(function StudentClasses({ classes }: StudentC
                                 className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-red-100 hover:shadow-[0_18px_42px_-34px_rgba(127,29,29,0.35)] dark:border-slate-200 dark:bg-white"
                             >
                                 <div className="border-b border-slate-100 bg-white p-4 dark:border-slate-100 dark:bg-white">
-                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div className="min-w-0">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <Badge tone="primary">{item.subject || 'Môn học'}</Badge>

@@ -14,6 +14,7 @@ import {
 import type { OnlineExam, QuestionItem, ExamSubmission } from '../types';
 import { KaTeXRenderer } from './KaTeXRenderer';
 import type { ClassItem } from '../../../types';
+import { formatStudentName, compareStudentNames } from '../../../utils/format';
 
 type TeacherExamManagerProps = {
     exams: OnlineExam[];
@@ -24,6 +25,7 @@ type TeacherExamManagerProps = {
     onFetchSubmissions: (examId: number) => Promise<ExamSubmission[]>;
     onGradeSubmission: (subId: number, essayScores: Record<number, { score: number; feedback: string }>, feedback: string, totalScore: number) => Promise<void>;
     onFetchExamDetails: (examId: number) => Promise<{ exam: OnlineExam; questions: QuestionItem[] }>;
+    selectedClassId?: number | null;
 };
 
 export function TeacherExamManager({
@@ -77,7 +79,6 @@ export function TeacherExamManager({
                     </span>
                     <div>
                         <h2 className="text-lg font-bold text-[var(--color-text)]">Quản Lý Kiểm Tra Trực Tuyến</h2>
-                        <p className="text-xs text-[var(--color-text-secondary)]">Tạo bài thi 45p, Trộn câu hỏi/đáp án, Import Word/Excel, Chấm tự luận & Thống kê phổ điểm</p>
                     </div>
                 </div>
 
@@ -112,7 +113,6 @@ export function TeacherExamManager({
             {viewMode === 'list' && (
                 <Panel
                     title={`Danh Sách Bài Kiểm Tra Trực Tuyến (${displayedExams.length} đề thi)`}
-                    subtitle="Quản lý thời lượng, hướng dẫn, trộn câu/đáp án, hạn nộp, chấm bài, bảng xếp hạng và log hành vi làm bài"
                 >
                     {displayedExams.length ? (
                         <div className="grid gap-4 xl:grid-cols-2">
@@ -137,7 +137,6 @@ export function TeacherExamManager({
                                         </div>
 
                                         <h3 className="text-base font-black text-[var(--color-text)] mb-2 leading-snug">{exam.title}</h3>
-                                        <p className="text-xs text-[var(--color-text-secondary)] mb-4 line-clamp-2">{exam.description || 'Không có mô tả thêm'}</p>
 
                                         <div className="mb-4 flex flex-wrap gap-1.5">
                                             <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black text-blue-700 dark:bg-blue-950 dark:text-blue-200">Tự chấm trắc nghiệm</span>
@@ -276,8 +275,7 @@ export function TeacherExamManager({
 // 1. ANALYTICS DASHBOARD COMPONENT
 // ----------------------------------------------------------------------
 function ExamAnalyticsDashboard({
-    exam,
-    questions,
+        questions,
     submissions,
 }: {
     exam: OnlineExam;
@@ -337,7 +335,7 @@ function ExamAnalyticsDashboard({
             </div>
 
             {/* Question Breakdown Analysis */}
-            <Panel title={`Phân Tích Tỷ Lệ Trả Lời Đúng Từng Câu (${questions.length} câu)`} subtitle={exam.title}>
+            <Panel title={`Phân Tích Tỷ Lệ Trả Lời Đúng Từng Câu (${questions.length} câu)`}>
                 {questions.length ? (
                     <div className="grid gap-3">
                         {questions.map((q, idx) => (
@@ -402,9 +400,9 @@ function EssayGradingPanel({
     return (
         <div className="grid gap-6 md:grid-cols-3">
             {/* Left: Student Submissions Roster */}
-            <Panel title="Danh Sách Bài Làm" subtitle={`${submissions.length} học sinh nộp`}>
+            <Panel title="Danh Sách Bài Làm">
                 <div className="grid gap-2">
-                    {submissions.map((sub) => (
+                    {[...submissions].sort((a, b) => compareStudentNames(a.student_name, b.student_name)).map((sub) => (
                         <button
                             key={sub.id}
                             type="button"
@@ -415,7 +413,7 @@ function EssayGradingPanel({
                                 }`}
                         >
                             <div>
-                                <h4 className="font-bold text-xs text-[var(--color-text)]">{sub.student_name || `@${sub.username}`}</h4>
+                                <h4 className="font-bold text-xs text-[var(--color-text)]">{formatStudentName(sub.student_name) || `@${sub.username}`}</h4>
                                 <span className="text-[10px] text-[var(--color-text-muted)]">Nộp: {sub.submit_time ? new Date(sub.submit_time).toLocaleString('vi-VN') : 'Đang làm'}</span>
                             </div>
                             <span className={`rounded-lg px-2 py-0.5 text-[10px] font-bold ${sub.status === 'graded' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
@@ -430,7 +428,7 @@ function EssayGradingPanel({
             {/* Right: Essay Grading Editor */}
             <div className="md:col-span-2">
                 {gradingSubmission ? (
-                    <Panel title={`Chấm Bài: ${gradingSubmission.student_name}`} subtitle={`Mã HS: ${gradingSubmission.student_code || 'N/A'}`}>
+                    <Panel title={`Chấm Bài: ${formatStudentName(gradingSubmission.student_name)}`}>
                         <div className="grid gap-6">
                             {/* Essay Questions List */}
                             {essayQuestions.map((eq, idx) => {
@@ -529,7 +527,9 @@ function CreateEditExamModal({
     const [shuffleQ, setShuffleQ] = useState<boolean>(editing?.exam.shuffle_questions !== false);
     const [shuffleOpt, setShuffleOpt] = useState<boolean>(editing?.exam.shuffle_options !== false);
     const [displayMode, setDisplayMode] = useState<'one' | 'all'>(editing?.exam.display_mode || 'one');
-    const [status, setStatus] = useState<'draft' | 'published' | 'closed'>(editing?.exam.status || 'published');
+    const [status, setStatus] = useState<'draft' | 'published' | 'closed'>(
+        editing?.exam.status && editing.exam.status !== 'library' ? editing.exam.status : 'published'
+    );
     const [questions, setQuestions] = useState<QuestionItem[]>(editing?.questions || []);
     const [instructions, setInstructions] = useState(editing?.exam.instructions || 'Đọc kỹ đề, làm toàn màn hình, không chuyển tab. Trắc nghiệm tự chấm, nói/viết/mindmap giáo viên chấm sau.');
     const [dueTime, setDueTime] = useState(editing?.exam.due_time ? editing.exam.due_time.slice(0, 16) : '');
@@ -627,7 +627,6 @@ function CreateEditExamModal({
                 <div className="flex items-center justify-between p-6 border-b border-[var(--color-border)] bg-[var(--color-bg-soft)]">
                     <div>
                         <h3 className="text-xl font-black text-[var(--color-text)] tracking-tight">{editing ? 'Sửa Đề Thi Trực Tuyến' : 'Tạo Bài Kiểm Tra Trực Tuyến Mới'}</h3>
-                        <p className="text-xs text-[var(--color-text-secondary)] mt-1">Bước {step}/3: {step === 1 ? 'Thông tin chung' : step === 2 ? 'Ngân hàng câu hỏi' : 'Cài đặt nâng cao'}</p>
                     </div>
                     <div className="flex items-center gap-4">
                         {autosaveMsg && <span className="text-[10px] text-emerald-600 font-medium animate-pulse">{autosaveMsg}</span>}
@@ -871,7 +870,6 @@ function SmartFileImportModal({
                         </span>
                         <div>
                             <h3 className="text-lg font-bold text-[var(--color-text)]">Import Đề Thi Từ Word (.docx) / Excel (.xlsx) / PDF</h3>
-                            <p className="text-xs text-[var(--color-text-secondary)]">Tự động nhận diện câu hỏi trắc nghiệm, tự luận, đáp án và công thức khoa học</p>
                         </div>
                     </div>
                     <button type="button" onClick={onClose} className="rounded-md p-2 text-[var(--color-text-muted)] hover:bg-[var(--color-bg-soft)]"><XIcon size={18} /></button>

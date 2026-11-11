@@ -8,7 +8,7 @@ type StudentAttendanceViewProps = {
     classes: ClassItem[];
 };
 
-type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
+type AttendanceStatus = 'present' | 'absent' | 'late';
 type SlotStatus = 'present' | 'missing' | 'upcoming';
 
 type StudentAttendanceRecord = {
@@ -128,7 +128,6 @@ const setTimeOnDate = (date: Date, time: string) => {
 const statusLabel: Record<AttendanceStatus, string> = {
     present: 'Có mặt',
     late: 'Đi muộn',
-    excused: 'Nghỉ phép',
     absent: 'Vắng mặt',
 };
 
@@ -211,11 +210,17 @@ export const StudentAttendanceView = memo(function StudentAttendanceView({ class
         const filteredClasses = selectedClassId === 'all' ? classSource : classSource.filter((item) => item.id === selectedClassId);
 
         const recordSlots = filteredClasses.flatMap((classItem) => records
-            .filter((record) => record.class_id === classItem.id && record.session_start_time && new Date(record.session_start_time) >= selectedWeekStart && new Date(record.session_start_time) <= selectedWeekEnd)
+            .filter((record) => {
+                if (record.class_id !== classItem.id) return false;
+                const recordDate = new Date(record.session_start_time || record.date);
+                return recordDate >= selectedWeekStart && recordDate <= selectedWeekEnd;
+            })
             .map((record) => {
-                const start = new Date(record.session_start_time || record.date);
-                const end = record.session_end_time ? new Date(record.session_end_time) : setTimeOnDate(start, parseScheduleTime(classItem.schedule || '', classItem.class_hours).end);
-                const recordStatus: SlotStatus = record.status === 'present' || record.status === 'late' || record.status === 'excused' ? 'present' : 'missing';
+                const scheduleTime = parseScheduleTime(classItem.schedule || '', classItem.class_hours);
+                const baseDate = new Date(record.session_start_time || record.date);
+                const start = record.session_start_time ? baseDate : setTimeOnDate(baseDate, scheduleTime.start);
+                const end = record.session_end_time ? new Date(record.session_end_time) : setTimeOnDate(baseDate, scheduleTime.end);
+                const recordStatus: SlotStatus = record.status === 'present' || record.status === 'late' ? 'present' : 'missing';
                 return {
                     id: `${classItem.id}-session-${record.session_id || record.date}`,
                     class_id: classItem.id,
@@ -226,7 +231,7 @@ export const StudentAttendanceView = memo(function StudentAttendanceView({ class
                     time: `${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`,
                     status: recordStatus,
                     label: statusLabel[record.status],
-                    note: record.note || 'Bản ghi đã đồng bộ từ timeline buổi học.',
+                    note: record.note || '',
                     record,
                 };
             }));
@@ -243,7 +248,7 @@ export const StudentAttendanceView = memo(function StudentAttendanceView({ class
                 const end = setTimeOnDate(day.date, time.end);
                 const record = recordMap.get(`${classItem.id}-${day.key}`);
                 const isUpcoming = start.getTime() > now.getTime();
-                const status: SlotStatus = isUpcoming ? 'upcoming' : record?.status === 'present' || record?.status === 'late' || record?.status === 'excused' ? 'present' : 'missing';
+                const status: SlotStatus = isUpcoming ? 'upcoming' : record?.status === 'present' || record?.status === 'late' ? 'present' : 'missing';
                 const label = isUpcoming ? 'Chưa đến giờ' : record ? statusLabel[record.status] : 'Chưa có mặt';
                 return {
                     id: `${classItem.id}-${day.key}`,
@@ -275,7 +280,7 @@ export const StudentAttendanceView = memo(function StudentAttendanceView({ class
 
     const attendanceReport = useMemo(() => {
         const scopedRecords = selectedClassId === 'all' ? records : records.filter((record) => record.class_id === selectedClassId);
-        const attendedRecords = scopedRecords.filter((record) => record.status === 'present' || record.status === 'late' || record.status === 'excused');
+        const attendedRecords = scopedRecords.filter((record) => record.status === 'present' || record.status === 'late');
         const absentRecords = scopedRecords
             .filter((record) => record.status === 'absent')
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -324,25 +329,22 @@ export const StudentAttendanceView = memo(function StudentAttendanceView({ class
                             <h1 className="mt-3 text-2xl font-black tracking-[-0.04em] text-slate-950 dark:text-slate-950 sm:text-3xl">
                                 Tuần {formatDate(selectedWeekStart)} - {formatDate(selectedWeekEnd)}
                             </h1>
-                            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-600">
-                                Chọn tuần để xem đầy đủ khung giờ học từ Thứ 2 đến Chủ nhật. Xanh là đã có mặt, đỏ là chưa có mặt, xám là chưa đến giờ.
-                            </p>
                         </div>
 
-                        <div className="grid gap-2 sm:grid-cols-[auto_auto_auto] sm:items-center">
-                            <Button type="button" variant="secondary" onClick={() => moveWeek(-1)} className="!border-slate-200 !bg-white !text-slate-800 dark:!border-slate-200 dark:!bg-white dark:!text-slate-800">
+                        <div className="grid grid-cols-[1fr_minmax(138px,1.2fr)_1fr] items-end gap-2">
+                            <Button type="button" variant="secondary" onClick={() => moveWeek(-1)} className="!h-11 !w-full !border-slate-200 !bg-white !px-2 !text-slate-800 dark:!border-[var(--color-border)] dark:!bg-[var(--color-bg-soft)] dark:!text-[var(--color-text)]">
                                 Tuần trước
                             </Button>
-                            <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-slate-400 dark:text-slate-400">
+                            <label className="grid min-w-0 gap-1 text-center text-xs font-black uppercase tracking-wide text-slate-400 dark:text-[var(--color-text-secondary)]">
                                 Chọn tuần
                                 <input
                                     type="week"
                                     value={weekInputValue(selectedWeekStart)}
                                     onChange={(event) => handleWeekInput(event.target.value)}
-                                    className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black normal-case tracking-normal text-slate-900 outline-none transition focus:border-red-300 focus:ring-4 focus:ring-red-50 dark:border-slate-200 dark:bg-white dark:text-slate-900"
+                                    className="h-11 w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-2 text-center text-sm font-black normal-case tracking-normal text-slate-900 outline-none transition focus:border-red-300 focus:ring-4 focus:ring-red-50 dark:border-[var(--color-border)] dark:bg-[var(--color-bg-soft)] dark:text-[var(--color-text)] dark:[color-scheme:dark]"
                                 />
                             </label>
-                            <Button type="button" variant="secondary" onClick={() => moveWeek(1)} className="!border-slate-200 !bg-white !text-slate-800 dark:!border-slate-200 dark:!bg-white dark:!text-slate-800">
+                            <Button type="button" variant="secondary" onClick={() => moveWeek(1)} className="!h-11 !w-full !border-slate-200 !bg-white !px-2 !text-slate-800 dark:!border-[var(--color-border)] dark:!bg-[var(--color-bg-soft)] dark:!text-[var(--color-text)]">
                                 Tuần sau
                             </Button>
                         </div>
@@ -379,9 +381,6 @@ export const StudentAttendanceView = memo(function StudentAttendanceView({ class
                         <div className="rounded-[26px] border border-red-100 bg-red-50 p-4 dark:border-red-100 dark:bg-red-50">
                             <p className="text-xs font-black uppercase tracking-[0.16em] text-red-900 dark:text-red-900">Attendance report</p>
                             <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950 dark:text-slate-950">Tổng hợp chuyên cần</h2>
-                            <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-600">
-                                Báo cáo lấy trực tiếp từ cơ sở dữ liệu điểm danh, giúp học sinh biết đã đi học bao nhiêu buổi và vắng những ngày nào.
-                            </p>
                             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                                 <ReportCard label="Tổng buổi" value={attendanceReport.total} className="text-slate-950" />
                                 <ReportCard label="Đã đi" value={attendanceReport.attended} className="text-emerald-700" />
@@ -466,7 +465,7 @@ export const StudentAttendanceView = memo(function StudentAttendanceView({ class
             {focusedSlot && (
                 <div className="fixed inset-0 z-[150] grid place-items-end bg-slate-950/45 p-0 backdrop-blur-sm sm:place-items-center sm:p-4">
                     <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-[30px] border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-200 dark:bg-white sm:max-w-2xl sm:rounded-[30px] sm:p-6">
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center justify-between gap-4">
                             <div>
                                 <Badge tone={focusedSlot.status === 'present' ? 'success' : focusedSlot.status === 'missing' ? 'danger' : 'neutral'}>{slotStatusCopy[focusedSlot.status]}</Badge>
                                 <h3 className="mt-3 text-2xl font-black tracking-[-0.04em] text-slate-950 dark:text-slate-950">{focusedSlot.record?.session_title || focusedSlot.class_name}</h3>

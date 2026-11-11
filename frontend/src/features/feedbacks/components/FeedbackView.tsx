@@ -225,9 +225,6 @@ export function FeedbackView({ user }: FeedbackViewProps) {
     const responseRate = feedbacks.length ? Math.round((resolvedCount / feedbacks.length) * 100) : 0;
     const latestFeedback = feedbacks[0];
     const heroTitle = isStudent ? 'Phản hồi của học sinh' : 'Trung tâm xử lý phản hồi';
-    const heroDescription = isStudent
-        ? 'Không gian phản hồi được tối ưu cho mắt nhìn trên điện thoại: thông tin quan trọng ở trên cùng, nút gửi dễ chạm, biểu mẫu có dữ liệu mẫu và trạng thái phản hồi được tách rõ để học sinh theo dõi thuận tiện.'
-        : 'Thiết kế ưu tiên luồng đọc - hiểu - xử lý: phản hồi chờ được đặt nổi bật, nội dung chia thành thẻ dễ quét mắt, thao tác trả lời nằm đúng ngữ cảnh và popup có dữ liệu mẫu để phản hồi nhanh.';
 
     return (
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-24 md:pb-8">
@@ -244,9 +241,6 @@ export function FeedbackView({ user }: FeedbackViewProps) {
                         </div>
                         <div>
                             <h1 className="text-2xl font-black tracking-[-0.04em] text-slate-950 md:text-4xl">{heroTitle}</h1>
-                            <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-600">
-                                {heroDescription}
-                            </p>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-3">
                             <MetricCard label={isStudent ? 'Đang chờ' : 'Chờ xử lý'} value={pendingCount} hint={isStudent ? 'Đã gửi, đang được xem' : 'Cần phản hồi trước'} tone="rose" />
@@ -482,7 +476,6 @@ function FeedbackCard({ item, index, canRespond, onRespond }: { item: FeedbackIt
                     </div>
 
                     <h3 className="text-lg font-black leading-snug tracking-[-0.02em] text-slate-950 md:text-xl">{item.subject}</h3>
-                    <p className="mt-2 whitespace-pre-line text-sm font-medium leading-6 text-slate-600">{item.content}</p>
 
                     <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
                         <span>👤 {item.student_name || 'Học viên'} {item.student_code ? `· ${item.student_code}` : `· ID ${item.student_id}`}</span>
@@ -537,9 +530,6 @@ function EmptyState({ canCreate, onCreate }: { canCreate: boolean; onCreate: () 
         <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-white p-8 text-center shadow-sm">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-red-50 text-2xl">💬</div>
             <h3 className="mt-4 text-lg font-black text-slate-950">Không tìm thấy phản hồi phù hợp</h3>
-            <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-slate-600">
-                Thử đổi bộ lọc hoặc tìm bằng từ khóa ngắn hơn. Không gian hiển thị được giữ thoáng để dễ đọc và giảm tải thị giác.
-            </p>
             {canCreate && (
                 <PrimaryButton onClick={onCreate} className="mt-5 rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-black hover:bg-[var(--color-primary-hover)]">
                     Gửi phản hồi mới
@@ -575,11 +565,10 @@ function CreateFeedbackModal({
                 aria-modal="true"
                 aria-labelledby="create-feedback-title"
             >
-                <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 p-5 sm:p-6">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 p-5 sm:p-6">
                     <div>
                         <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[var(--color-primary)]">Biểu mẫu phản hồi</p>
                         <h2 id="create-feedback-title" className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950 sm:text-2xl">Gửi phản hồi mới</h2>
-                        <p className="mt-1 text-sm font-medium text-slate-600">Form đã có dữ liệu mẫu, chỉ cần chỉnh nội dung đúng tình huống rồi gửi.</p>
                     </div>
                     <button type="button" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 transition hover:bg-rose-50 hover:text-rose-600" aria-label="Đóng form phản hồi">
                         <XIcon size={20} />
@@ -669,11 +658,10 @@ function ResponseModal({
                 aria-modal="true"
                 aria-labelledby="response-feedback-title"
             >
-                <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 p-5 sm:p-6">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 p-5 sm:p-6">
                     <div>
                         <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[var(--color-primary)]">Trả lời học viên</p>
                         <h2 id="response-feedback-title" className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950 sm:text-2xl">Phản hồi chính thức</h2>
-                        <p className="mt-1 text-sm font-medium text-slate-600">Popup tối ưu cho hành vi trả lời nhanh: đọc vấn đề bên trên, chọn mẫu, chỉnh nội dung và gửi.</p>
                     </div>
                     <button type="button" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-500 transition hover:bg-rose-50 hover:text-rose-600" aria-label="Đóng popup trả lời">
                         <XIcon size={20} />
@@ -684,7 +672,6 @@ function ResponseModal({
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                         <div className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Nội dung học viên gửi</div>
                         <h3 className="mt-2 text-base font-black text-slate-950">{item.subject}</h3>
-                        <p className="mt-2 whitespace-pre-line text-sm font-medium leading-6 text-slate-600">{item.content}</p>
                     </div>
 
                     <div className="mt-4 rounded-2xl bg-red-50 p-3">

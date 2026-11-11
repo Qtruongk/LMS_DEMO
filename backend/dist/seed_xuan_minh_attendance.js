@@ -116,14 +116,12 @@ async function main() {
                 const attDate = dateOnly(start);
                 for (let studentIndex = 0; studentIndex < studentIds.length; studentIndex += 1) {
                     const marker = (sessionIndex + studentIndex + classIndex) % 16;
-                    const status = marker === 0 ? 'absent' : marker === 3 ? 'late' : marker === 7 ? 'excused' : 'present';
+                    const status = marker === 0 ? 'absent' : marker === 3 ? 'late' : 'present';
                     const note = status === 'present'
                         ? 'Có mặt đúng giờ'
                         : status === 'late'
                             ? 'Đi muộn, đã cập nhật sau buổi học'
-                            : status === 'excused'
-                                ? 'Nghỉ có phép, phụ huynh đã báo'
-                                : 'Vắng mặt, cần giảng viên theo dõi bổ sung';
+                            : 'Vắng mặt, cần giảng viên theo dõi bổ sung';
                     await client.query(`INSERT INTO attendance (class_id, student_id, date, status, note)
                          VALUES ($1, $2, $3, $4, $5)
                          ON CONFLICT (class_id, student_id, date)

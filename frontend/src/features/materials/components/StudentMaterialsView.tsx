@@ -222,7 +222,6 @@ export const StudentMaterialsView = memo(function StudentMaterialsView({ classes
                         <span className="rounded-full bg-[var(--color-bg-soft)] px-2.5 py-1 text-[11px] font-black text-[var(--color-text-muted)]">{materials.length} tài liệu</span>
                     </div>
                     <h3 className="mt-3 font-black text-[var(--color-text)]">Tất cả tài liệu</h3>
-                    <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">Tổng hợp từ mọi lớp đang học</p>
                 </button>
                 {folders.map((folder) => (
                     <button
@@ -237,7 +236,6 @@ export const StudentMaterialsView = memo(function StudentMaterialsView({ classes
                             <span className="rounded-full bg-[var(--color-bg-soft)] px-2.5 py-1 text-[11px] font-black text-[var(--color-text-muted)]">{folder.count} tài liệu</span>
                         </div>
                         <h3 className="mt-3 line-clamp-1 font-black text-[var(--color-text)]">{folder.name}</h3>
-                        <p className="mt-1 line-clamp-1 text-xs leading-5 text-[var(--color-text-secondary)]">{folder.subject || 'Môn học'}</p>
                     </button>
                 ))}
             </section>
@@ -246,7 +244,6 @@ export const StudentMaterialsView = memo(function StudentMaterialsView({ classes
                 <div className="flex flex-col gap-2 border-b border-[var(--color-border)] p-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h3 className="text-lg font-black tracking-[-0.02em] text-[var(--color-text)]">Danh sách tài liệu ({filteredFiles.length})</h3>
-                        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Ưu tiên thẻ lớn trên di động, bảng gọn trên màn hình rộng.</p>
                     </div>
                     <div className="inline-flex w-fit items-center gap-2 rounded-full bg-[var(--color-bg-soft)] px-3 py-1.5 text-xs font-black text-[var(--color-text-secondary)]">
                         <ClockIcon size={14} /> Cập nhật từ cơ sở dữ liệu
@@ -269,6 +266,7 @@ export const StudentMaterialsView = memo(function StudentMaterialsView({ classes
                                         <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase text-[var(--color-text-secondary)]">{getFileTypeLabel(file)}</span>
+                                                <span className={`rounded-full px-2 py-1 text-[10px] font-black ${file.material_kind === 'solution' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{file.material_kind === 'solution' ? 'Tài liệu sửa bài' : 'Tài liệu trắng'}</span>
                                                 <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-[var(--color-text-secondary)]">{file.file_size || 'Không rõ size'}</span>
                                             </div>
                                             <h4 className="mt-2 line-clamp-2 font-black leading-5 text-[var(--color-text)]">{file.title}</h4>
@@ -314,7 +312,10 @@ export const StudentMaterialsView = memo(function StudentMaterialsView({ classes
                                             </td>
                                             <td className="px-6 py-4 text-[var(--color-text-secondary)]">{getClassName(file)}</td>
                                             <td className="px-6 py-4">
-                                                <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${getFileBadge(file)}`}>{getFileTypeLabel(file)} · {file.file_size || '—'}</span>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${getFileBadge(file)}`}>{getFileTypeLabel(file)} · {file.file_size || '—'}</span>
+                                                    <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${file.material_kind === 'solution' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>{file.material_kind === 'solution' ? 'Tài liệu sửa bài' : 'Tài liệu trắng'}</span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-[var(--color-text-secondary)]">
                                                 <div className="flex items-center gap-2"><CalendarIcon size={15} /> {formatMaterialDate(file.created_at)}</div>
@@ -356,13 +357,12 @@ export const StudentMaterialsView = memo(function StudentMaterialsView({ classes
                             className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-2xl"
                             onClick={(event) => event.stopPropagation()}
                         >
-                            <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-center justify-between gap-4">
                                 <div className="flex items-start gap-3">
                                     <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl border ${getFileBadge(selectedMaterial)}`}><FileIcon size={24} /></div>
                                     <div>
                                         <span className="rounded-full bg-[var(--color-bg-soft)] px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-[var(--color-text-secondary)]">{getFileTypeLabel(selectedMaterial)}</span>
                                         <h3 className="mt-3 text-xl font-black tracking-[-0.03em] text-[var(--color-text)]">{selectedMaterial.title}</h3>
-                                        <p className="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">{selectedMaterial.description || selectedMaterial.note || 'Tài liệu học tập đã sẵn sàng để xem hoặc tải về.'}</p>
                                     </div>
                                 </div>
                                 <button type="button" onClick={() => setSelectedMaterial(null)} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] text-[var(--color-text-secondary)] transition hover:text-[var(--color-text)]" aria-label="Đóng popup tài liệu">

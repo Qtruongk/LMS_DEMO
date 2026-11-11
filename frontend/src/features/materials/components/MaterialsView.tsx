@@ -13,14 +13,23 @@ type MaterialsViewProps = {
     setSelectedClassId: (id: number) => void;
 };
 
-type MaterialFilter = 'all' | 'file' | 'link' | 'pinned';
+type MaterialFilter = 'all' | 'file' | 'link' | 'blank' | 'solution' | 'pinned';
+type MaterialKind = 'blank' | 'solution';
 
 type UploadForm = {
     classId: number;
     title: string;
     note: string;
     externalLink: string;
+    materialKind: MaterialKind;
 };
+
+const materialKindLabels: Record<MaterialKind, string> = {
+    blank: 'Tài liệu trắng',
+    solution: 'Tài liệu sửa bài',
+};
+
+const getMaterialKind = (material?: Pick<Material, 'material_kind'>): MaterialKind => material?.material_kind === 'solution' ? 'solution' : 'blank';
 
 export function MaterialsView({ user, classes, selectedClassId, setSelectedClassId }: MaterialsViewProps) {
     if (user.role === 'student') {
@@ -80,6 +89,8 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
         const matchesType = typeFilter === 'all'
             || (typeFilter === 'file' && !item.isLink)
             || (typeFilter === 'link' && item.isLink)
+            || (typeFilter === 'blank' && getMaterialKind(item) === 'blank')
+            || (typeFilter === 'solution' && getMaterialKind(item) === 'solution')
             || (typeFilter === 'pinned' && item.isPinned);
         return matchesKeyword && matchesType;
     }).sort((a, b) => {
@@ -91,6 +102,8 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
     const fileCount = enrichedMaterials.filter((item) => !item.isLink).length;
     const linkCount = enrichedMaterials.filter((item) => item.isLink).length;
     const pinnedCount = enrichedMaterials.filter((item) => item.isPinned).length;
+    const blankCount = enrichedMaterials.filter((item) => getMaterialKind(item) === 'blank').length;
+    const solutionCount = enrichedMaterials.filter((item) => getMaterialKind(item) === 'solution').length;
 
     const togglePin = (id: number) => {
         setPinnedIds((previous) => previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]);
@@ -144,7 +157,6 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                         <div>
                             <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--color-primary)]">Tài liệu giảng viên</p>
                             <h2 className="text-xl font-black tracking-[-0.03em] text-[var(--color-text)] sm:text-2xl">Kho học liệu dễ tìm, dễ gửi, dễ cập nhật</h2>
-                            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)]">Tối ưu mắt nhìn: chọn lớp, tìm kiếm và upload đặt ngay đầu trang. Tài liệu hiển thị dạng thẻ lớn, nút rõ, popup nền trắng dễ đọc trên di động.</p>
                         </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -165,15 +177,17 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                     </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     <MaterialStat icon={<FileIcon size={18} />} label="Tệp" value={fileCount} />
                     <MaterialStat icon={<BookIcon size={18} />} label="Link" value={linkCount} />
+                    <MaterialStat icon={<FileIcon size={18} />} label="Tài liệu trắng" value={blankCount} />
+                    <MaterialStat icon={<CheckCircleIcon size={18} />} label="Sửa bài" value={solutionCount} />
                     <MaterialStat icon={<CheckCircleIcon size={18} />} label="Đã ghim" value={pinnedCount} />
                 </div>
             </section>
 
             <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
-                <Panel title="Điều khiển tài liệu" subtitle="Tìm kiếm nhanh và lọc theo loại tài liệu để giảm tải nhận thức.">
+                <Panel title="Điều khiển tài liệu">
                     <div className="grid gap-3">
                         <div className="relative">
                             <SearchIcon size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
@@ -189,6 +203,8 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                                 { key: 'all', label: 'Tất cả' },
                                 { key: 'file', label: 'File' },
                                 { key: 'link', label: 'Link' },
+                                { key: 'blank', label: 'Tài liệu trắng' },
+                                { key: 'solution', label: 'Sửa bài' },
                                 { key: 'pinned', label: 'Đã ghim' },
                             ].map((item) => (
                                 <button
@@ -208,7 +224,7 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                     </div>
                 </Panel>
 
-                <Panel title={`Danh sách tài liệu (${filteredMaterials.length})`} subtitle="Thẻ tài liệu lớn, thông tin vừa đủ và nút thao tác rõ ràng.">
+                <Panel title={`Danh sách tài liệu (${filteredMaterials.length})`}>
                     {loading ? (
                         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                             {[1, 2, 3].map((item) => <div key={item} className="h-56 animate-pulse rounded-3xl bg-[var(--color-bg-soft)]" />)}
@@ -223,13 +239,14 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                                     transition={{ delay: index * 0.04 }}
                                     className={`group rounded-[1.75rem] border p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-xl ${item.isPinned ? 'border-amber-300 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10' : 'border-[var(--color-border)] bg-[var(--color-card)]'}`}
                                 >
-                                    <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-3">
                                             <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
                                                 {item.isLink ? <BookIcon size={22} /> : <FileIcon size={22} />}
                                             </span>
                                             <div>
                                                 <span className="rounded-full bg-indigo-100 px-3 py-1 text-[11px] font-black text-indigo-700">{item.isLink ? 'Link học liệu' : 'File tài liệu'}</span>
+                                                <span className={`ml-2 rounded-full px-3 py-1 text-[11px] font-black ${getMaterialKind(item) === 'solution' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{materialKindLabels[getMaterialKind(item)]}</span>
                                                 {item.isPinned && <span className="ml-2 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-700">Đã ghim</span>}
                                             </div>
                                         </div>
@@ -241,10 +258,10 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                                     </div>
 
                                     <h3 className="mt-4 line-clamp-2 text-base font-black tracking-[-0.02em] text-[var(--color-text)]">{item.title}</h3>
-                                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--color-text-secondary)]">{item.description || item.note || 'Tài liệu đã sẵn sàng cho lớp học.'}</p>
 
                                     <div className="mt-4 grid gap-2 rounded-2xl bg-[var(--color-bg-soft)] p-3 text-xs font-bold text-[var(--color-text-secondary)]">
                                         <div className="flex items-center justify-between gap-2"><span>Lớp</span><span className="truncate text-[var(--color-text)]">{item.class_name || classes.find((klass) => klass.id === item.class_id)?.name || 'Lớp đang chọn'}</span></div>
+                                        <div className="flex items-center justify-between gap-2"><span>Kiểu</span><span className="truncate text-[var(--color-text)]">{materialKindLabels[getMaterialKind(item)]}</span></div>
                                         <div className="flex items-center justify-between gap-2"><span>Đính kèm</span><span className="truncate text-[var(--color-text)]">{item.file_name || item.external_link || 'Chưa có đính kèm'}</span></div>
                                         <div className="flex items-center justify-between gap-2"><span>Lượt tải</span><span className="text-[var(--color-text)]">{item.downloads}</span></div>
                                     </div>
@@ -263,7 +280,6 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                         <div className="rounded-3xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-soft)] p-8 text-center">
                             <FileIcon size={38} className="mx-auto text-[var(--color-text-muted)]" />
                             <h3 className="mt-3 text-lg font-black text-[var(--color-text)]">Chưa có tài liệu phù hợp</h3>
-                            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Thử xoá bộ lọc hoặc tải tài liệu mới bằng form có sẵn dữ liệu.</p>
                         </div>
                     )}
                 </Panel>
@@ -295,6 +311,7 @@ export function MaterialsView({ user, classes, selectedClassId, setSelectedClass
                             </div>
                             <div className="grid gap-3 sm:grid-cols-3">
                                 <PreviewInfo label="Loại" value={previewMaterial.external_link ? 'Link học liệu' : 'File tài liệu'} />
+                                <PreviewInfo label="Kiểu bài" value={materialKindLabels[getMaterialKind(previewMaterial)]} />
                                 <PreviewInfo label="Tệp" value={previewMaterial.file_name || previewMaterial.external_link || 'Chưa có đính kèm'} />
                                 <PreviewInfo label="Ngày tải" value={new Date(previewMaterial.created_at).toLocaleDateString('vi-VN')} />
                             </div>
@@ -354,9 +371,10 @@ function MaterialPopup({ title, onClose, children }: { title: string; onClose: (
 function UploadMaterialModal({ classes, selectedClassId, headers, onClose, onSuccess }: { classes: ClassItem[]; selectedClassId: number | null; headers: Record<string, string>; onClose: () => void; onSuccess: () => void }) {
     const [form, setForm] = useState<UploadForm>({
         classId: selectedClassId || classes[0]?.id || 0,
-        title: 'Bài giảng mới: Checklist chuẩn bị trước buổi học',
-        note: 'Mục tiêu: học sinh đọc trước 10 phút, ghi lại 2 câu hỏi và hoàn thành bài tập ngắn sau buổi học.',
+        title: 'Sách bài tập trắng - Unit mới',
+        note: 'Tài liệu trắng để học sinh làm bài trước. Nếu là tài liệu sửa bài, chọn kiểu “Tài liệu sửa bài” rồi upload bản giáo viên đã sửa.',
         externalLink: 'https://vat-learning.example/tai-lieu-mau',
+        materialKind: 'blank',
     });
     const [file, setFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
@@ -392,6 +410,7 @@ function UploadMaterialModal({ classes, selectedClassId, headers, onClose, onSuc
                     note: form.note,
                     description: form.note,
                     external_link: form.externalLink,
+                    material_kind: form.materialKind,
                     file_name: fileName,
                     file_data: fileData,
                     file_size: fileSize,
@@ -416,6 +435,30 @@ function UploadMaterialModal({ classes, selectedClassId, headers, onClose, onSuc
                     </select>
                 </div>
                 <div>
+                    <label className="mb-1 block text-xs font-black text-slate-600">Kiểu tài liệu <span className="text-red-500">*</span></label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                        {([
+                            ['blank', 'Tài liệu trắng', 'Sách bài tập trắng / file để học sinh tự làm'],
+                            ['solution', 'Tài liệu sửa bài', 'Bản giáo viên upload lại đã có bài sửa'],
+                        ] as const).map(([kind, title, desc]) => (
+                            <button
+                                key={kind}
+                                type="button"
+                                onClick={() => setForm({
+                                    ...form,
+                                    materialKind: kind,
+                                    title: kind === 'blank' ? 'Sách bài tập trắng - Unit mới' : 'Bản sửa bài giáo viên - Unit mới',
+                                    note: kind === 'blank' ? 'Tài liệu trắng để học sinh làm bài trước.' : 'Tài liệu đã có phần sửa bài/đáp án để học sinh xem lại sau buổi chữa bài.',
+                                })}
+                                className={`rounded-3xl border p-4 text-left transition ${form.materialKind === kind ? 'border-indigo-500 bg-indigo-50 text-indigo-950 shadow-[0_16px_35px_rgba(79,70,229,0.16)]' : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-indigo-50/50'}`}
+                            >
+                                <span className="block text-sm font-black">{title}</span>
+                                <span className="mt-1 block text-xs font-semibold leading-5 opacity-75">{desc}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div>
                     <label className="mb-1 block text-xs font-black text-slate-600">Tiêu đề tài liệu <span className="text-red-500">*</span></label>
                     <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
                 </div>
@@ -431,7 +474,7 @@ function UploadMaterialModal({ classes, selectedClassId, headers, onClose, onSuc
                     <input type="file" className="hidden" onChange={(event) => setFile(event.target.files?.[0] || null)} />
                     <FileIcon size={34} className="mx-auto text-indigo-600" />
                     <span className="mt-2 block text-sm font-black">{file ? `${file.name} • ${(file.size / 1024).toFixed(1)} KB` : 'Bấm để chọn file đính kèm'}</span>
-                    <span className="mt-1 block text-xs font-semibold opacity-70">Có thể dùng link, file hoặc cả hai. Form đã có dữ liệu mẫu.</span>
+                    <span className="mt-1 block text-xs font-semibold opacity-70">Có thể dùng link, file hoặc cả hai. Chọn “Tài liệu trắng” cho sách bài tập chưa sửa, “Tài liệu sửa bài” cho bản giáo viên đã chữa.</span>
                 </label>
                 <div className="grid gap-2 border-t border-slate-200 pt-4 sm:grid-cols-2">
                     <button type="button" onClick={onClose} className="min-h-12 rounded-2xl border border-slate-200 bg-slate-50 px-5 text-sm font-black text-slate-800 transition hover:bg-slate-100">Hủy</button>

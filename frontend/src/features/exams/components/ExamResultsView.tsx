@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Panel } from '../../../components/shared/ui';
-import { CalendarIcon } from '../../../components/shared/icons';
 import { AwardIcon, FlagIcon } from './ExamIcons';
 import type { ExamSubmission } from '../types';
 
@@ -34,11 +33,20 @@ function formatDate(value?: string) {
 }
 
 function getScoreInfo(result: ExamSubmission) {
-    const score = Number(result.total_score || 0);
+    const gradeScore = result.grade_details?.main?.score;
+    const score = Number(gradeScore ?? result.total_score ?? 0);
     const maxScore = Number(result.max_score || 10);
     const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
     const visible = result.status === 'graded' && result.show_score_after_submit !== false;
     return { score, maxScore, percent: Math.max(0, Math.min(100, percent)), visible };
+}
+
+function getGradeLabel(result: ExamSubmission) {
+    return result.grade_column_name || result.exam_title || 'Điểm kiểm tra';
+}
+
+function getGradebookTitle(result: ExamSubmission) {
+    return result.gradebook_name || 'Bảng điểm';
 }
 
 export function ExamResultsView({ results }: ExamResultsViewProps) {
@@ -50,7 +58,7 @@ export function ExamResultsView({ results }: ExamResultsViewProps) {
         const normalizedQuery = query.trim().toLowerCase();
         return results.filter((item) => {
             const matchStatus = status === 'all' || item.status === status;
-            const searchable = [item.exam_title, item.subject, item.class_name, item.assigned_grader_name]
+            const searchable = [item.exam_title, item.subject, item.class_name, item.assigned_grader_name, item.gradebook_name, item.grade_column_name]
                 .filter(Boolean)
                 .join(' ')
                 .toLowerCase();
@@ -58,11 +66,80 @@ export function ExamResultsView({ results }: ExamResultsViewProps) {
         });
     }, [query, results, status]);
 
+    const subjectGradebooks = useMemo(() => {
+        const groups = new Map<string, { subject: string; className: string; items: Array<{ id: number; label: string; score: number; maxScore: number; percent: number; visible: boolean; status: ExamSubmission['status']; examTitle: string; gradebook: string }>; totalScore: number; totalMax: number }>();
+        results.forEach((item) => {
+            const { score, maxScore, percent, visible } = getScoreInfo(item);
+            const subject = item.subject || 'Chung';
+            if (!groups.has(subject)) groups.set(subject, { subject, className: item.class_name || 'Chưa gán lớp', items: [], totalScore: 0, totalMax: 0 });
+            const group = groups.get(subject)!;
+            group.items.push({
+                id: item.id,
+                label: getGradeLabel(item),
+                score,
+                maxScore,
+                percent,
+                visible,
+                status: item.status,
+                examTitle: item.exam_title || 'Bài kiểm tra',
+                gradebook: getGradebookTitle(item),
+            });
+            if (visible) {
+                group.totalScore += score;
+                group.totalMax += maxScore;
+            }
+        });
+        return Array.from(groups.values()).map((group) => ({
+            ...group,
+            average: group.totalMax > 0 ? Math.round((group.totalScore / group.totalMax) * 100) : 0,
+        }));
+    }, [results]);
+
     return (
         <div className="grid gap-5 pb-4">
+            <Panel title="Bảng điểm tổng theo môn">
+                {subjectGradebooks.length ? (
+                    <div className="grid gap-4">
+                        {subjectGradebooks.map((group) => (
+                            <article key={group.subject} className="overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-sm">
+                                <div className="flex flex-col gap-3 border-b border-[var(--color-border)] bg-[var(--color-bg-soft)] p-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--color-primary)]">{group.className}</p>
+                                        <h3 className="mt-1 text-lg font-black text-[var(--color-text)]">{group.subject}</h3>
+                                    </div>
+                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-emerald-900 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-200">Điểm tổng</p>
+                                        <p className="mt-1 text-xl font-black text-emerald-950 dark:text-emerald-50">{group.totalMax > 0 ? `${group.totalScore.toFixed(2)} / ${group.totalMax.toFixed(2)}` : 'Chưa có điểm'}</p>
+                                        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-200">{group.totalMax > 0 ? `${group.average}%` : 'Chờ giáo viên chấm'}</p>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full min-w-[640px] text-left text-sm">
+                                        <thead className="bg-[var(--color-bg-soft)] text-xs uppercase text-[var(--color-text-muted)]">
+                                            <tr><th className="p-3">Bảng điểm</th><th className="p-3">Cột điểm</th><th className="p-3">Bài kiểm tra</th><th className="p-3">Điểm</th><th className="p-3">Trạng thái</th></tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[var(--color-border)]">
+                                            {group.items.map((item) => (
+                                                <tr key={item.id}>
+                                                    <td className="p-3 font-bold text-[var(--color-text)]">{item.gradebook}</td>
+                                                    <td className="p-3 font-black text-[var(--color-primary)]">{item.label}</td>
+                                                    <td className="p-3 text-[var(--color-text-secondary)]">{item.examTitle}</td>
+                                                    <td className="p-3 font-black text-[var(--color-text)]">{item.visible ? `${item.score.toFixed(2)} / ${item.maxScore.toFixed(2)}` : 'Chưa công bố'}</td>
+                                                    <td className="p-3 text-[var(--color-text-secondary)]">{statusLabel[item.status]}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="rounded-3xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-soft)] px-4 py-10 text-center text-sm font-bold text-[var(--color-text-muted)]">Chưa có bảng điểm môn học.</div>
+                )}
+            </Panel>
             <Panel
                 title={`Lịch sử & kết quả bài kiểm tra (${filteredResults.length}/${results.length})`}
-                subtitle="Bộ lọc rõ ràng, thẻ kết quả dễ quét bằng mắt, nút xem chi tiết đủ lớn cho thao tác trên di động"
             >
                 <div className="mb-4 grid gap-3 rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3 md:grid-cols-[1fr_14rem_auto]">
                     <label className="grid gap-1 text-xs font-bold text-[var(--color-text-secondary)]">
@@ -122,16 +199,11 @@ export function ExamResultsView({ results }: ExamResultsViewProps) {
                                             </div>
                                             <div>
                                                 <h3 className="text-base font-black leading-6 text-[var(--color-text)] sm:text-lg">{res.exam_title || 'Bài kiểm tra trực tuyến'}</h3>
-                                                <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-[var(--color-text-secondary)]">
-                                                    <span><CalendarIcon size={13} /> Nộp lúc: {formatDate(res.submit_time)}</span>
-                                                    <span>Môn: <b>{res.subject || 'Chung'}</b></span>
-                                                    <span>Lượt: <b>#{res.attempt_number}</b></span>
-                                                </p>
                                             </div>
 
                                             <div className="grid gap-2 sm:grid-cols-3">
                                                 <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3 text-xs">
-                                                    <b className="mb-1 flex items-center gap-1 text-[var(--color-text)]"><AwardIcon size={14} /> Điểm bài kiểm tra</b>
+                                                    <b className="mb-1 flex items-center gap-1 text-[var(--color-text)]"><AwardIcon size={14} /> {res.grade_column_name || 'Điểm bài kiểm tra'}</b>
                                                     <span className="font-bold text-[var(--color-text-secondary)]">{visible ? `${score.toFixed(2)} / ${maxScore.toFixed(2)} (${percent}%)` : 'Chưa công bố điểm'}</span>
                                                 </div>
                                                 <div className={`rounded-2xl border p-3 text-xs ${suspiciousLogs.length ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-100' : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100'}`}>
@@ -188,11 +260,10 @@ export function ExamResultsView({ results }: ExamResultsViewProps) {
                             const suspiciousLogs = (selectedResult.proctoring_logs || []).filter((log) => log.type === 'fullscreen_exit' || log.type === 'visibility_hidden');
                             return (
                                 <div className="space-y-4">
-                                    <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] pb-4">
+                                    <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] pb-4">
                                         <div>
                                             <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-black ${statusTone[selectedResult.status]}`}>{statusLabel[selectedResult.status]}</span>
                                             <h3 className="mt-3 text-xl font-black text-[var(--color-text)]">{selectedResult.exam_title || 'Bài kiểm tra trực tuyến'}</h3>
-                                            <p className="mt-1 text-xs font-semibold text-[var(--color-text-secondary)]">{selectedResult.subject || 'Chung'} • {selectedResult.class_name || 'Chưa gán lớp'}</p>
                                         </div>
                                         <button
                                             type="button"
@@ -206,7 +277,7 @@ export function ExamResultsView({ results }: ExamResultsViewProps) {
 
                                     <div className="grid gap-3 sm:grid-cols-3">
                                         <div className="rounded-3xl bg-blue-50 p-4 text-blue-950 dark:bg-blue-950/50 dark:text-blue-100">
-                                            <p className="text-[11px] font-black uppercase tracking-wider opacity-70">Điểm</p>
+                                            <p className="text-[11px] font-black uppercase tracking-wider opacity-70">{selectedResult.grade_column_name || 'Điểm'}</p>
                                             <p className="mt-2 text-2xl font-black">{visible ? `${score.toFixed(2)}/${maxScore.toFixed(2)}` : 'Chưa công bố'}</p>
                                         </div>
                                         <div className="rounded-3xl bg-emerald-50 p-4 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-100">
@@ -217,6 +288,11 @@ export function ExamResultsView({ results }: ExamResultsViewProps) {
                                             <p className="text-[11px] font-black uppercase tracking-wider opacity-70">Cảnh báo</p>
                                             <p className="mt-2 text-2xl font-black">{suspiciousLogs.length}</p>
                                         </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-soft)] p-3 text-sm">
+                                        <b className="text-[var(--color-text)]">Bảng điểm</b>
+                                        <p className="mt-1 text-[var(--color-text-secondary)]">{selectedResult.gradebook_name || 'Bảng điểm'} • {selectedResult.grade_column_name || 'Điểm kiểm tra'}: <span className="font-black text-[var(--color-primary)]">{visible ? score.toFixed(2) : 'Chưa công bố'}</span></p>
                                     </div>
 
                                     <div className="grid gap-3 text-sm sm:grid-cols-2">

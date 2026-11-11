@@ -19,7 +19,7 @@ type StudentExamTakeProps = {
     onExit: () => void;
 };
 
-const manualTypes = new Set(['essay', 'writing', 'speaking', 'mindmap']);
+
 
 const questionTypeLabel: Record<string, string> = {
     single_choice: 'Một đáp án',
@@ -33,6 +33,7 @@ const questionTypeLabel: Record<string, string> = {
     speaking: 'Nói',
     writing: 'Viết',
     essay: 'Tự luận',
+    paper_upload: 'Bài giấy - up ảnh',
 };
 
 function shuffleOptions<T>(items: T[], enabled: boolean) {
@@ -93,8 +94,7 @@ export function StudentExamTake({
     const currentQuestion = orderedQuestions[currentIndex];
     const answeredCount = answerCount(answers);
     const progress = orderedQuestions.length ? Math.round((answeredCount / orderedQuestions.length) * 100) : 0;
-    const manualQuestionCount = orderedQuestions.filter((q) => manualTypes.has(q.type)).length;
-    const unansweredQuestions = orderedQuestions.filter((q) => q.id && !hasAnswer(answers[q.id]));
+        const unansweredQuestions = orderedQuestions.filter((q) => q.id && !hasAnswer(answers[q.id]));
     const isDangerTime = timeLeft < 300;
 
     const appendLog = (type: ProctoringLog['type'], detail?: string, questionId?: number) => {
@@ -223,7 +223,6 @@ export function StudentExamTake({
                         </span>
                         <div className="min-w-0">
                             <h1 className="truncate text-base font-black md:text-xl">{exam.title}</h1>
-                            <p className="truncate text-xs text-slate-600">{exam.subject || 'Bài kiểm tra'} • Lượt làm #{submission.id} • {manualQuestionCount} câu cần giáo viên chấm</p>
                         </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
@@ -376,7 +375,6 @@ export function StudentExamTake({
                                     <span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><CheckCircleIcon size={24} /></span>
                                     <div>
                                         <h2 className="text-xl font-black text-slate-900">Xác nhận nộp bài</h2>
-                                        <p className="text-sm text-slate-600">Kiểm tra nhanh trước khi gửi cho giảng viên.</p>
                                     </div>
                                 </div>
                             </div>
@@ -521,7 +519,10 @@ function QuestionCard({
                                     className={`group flex min-h-16 items-center gap-4 rounded-3xl border p-4 text-left transition active:scale-[0.99] ${isSelected ? 'border-blue-300 bg-blue-50 text-blue-900 shadow-lg shadow-blue-100' : 'border-slate-200 bg-white text-slate-800 hover:border-blue-300 hover:bg-blue-50'}`}
                                 >
                                     <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-sm font-black ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 group-hover:bg-blue-100'}`}>{opt.id}</span>
-                                    <span className="min-w-0 flex-1"><KaTeXRenderer content={opt.text} /></span>
+                                    <span className="min-w-0 flex-1">
+                                        <KaTeXRenderer content={opt.text} />
+                                        <MediaStrip media={opt.media} compact />
+                                    </span>
                                     {isSelected && <CheckCircleIcon size={18} />}
                                 </button>
                             );
@@ -547,8 +548,9 @@ function QuestionCard({
                             <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-600">Chạm từng thẻ theo thứ tự đúng</p>
                             <div className="flex flex-wrap gap-2">
                                 {options.map((opt) => (
-                                    <button key={opt.id} type="button" onClick={() => moveOrderingItem(opt.id)} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-800 hover:bg-blue-100">
-                                        {opt.text}
+                                    <button key={opt.id} type="button" onClick={() => moveOrderingItem(opt.id)} className="rounded-2xl bg-slate-100 px-4 py-2 text-left text-sm font-bold text-slate-800 hover:bg-blue-100">
+                                        <KaTeXRenderer content={opt.text} />
+                                        <MediaStrip media={opt.media} compact />
                                     </button>
                                 ))}
                             </div>
@@ -556,6 +558,37 @@ function QuestionCard({
                         <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900">
                             <b>Thứ tự đã chọn:</b> {selectedList.length ? selectedList.join(' → ') : 'Chưa chọn'}
                         </div>
+                    </div>
+                )}
+
+                {question.type === 'paper_upload' && (
+                    <div className="grid gap-4">
+                        <div className="rounded-3xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">
+                            <p className="font-black">Bài kiểm tra bằng giấy</p>
+                            <p className="mt-1 text-xs font-semibold opacity-80">Làm bài trên giấy, chụp ảnh rõ nét từng trang rồi upload ảnh để giáo viên chấm.</p>
+                        </div>
+                        {typeof answer === 'string' && answer.startsWith('data:image/') && (
+                            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-3">
+                                <img src={answer} alt="Ảnh bài làm đã upload" className="max-h-[420px] w-full rounded-2xl object-contain" />
+                            </div>
+                        )}
+                        <label className="flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-blue-300 bg-blue-50 p-6 text-center text-sm text-blue-950 hover:border-blue-400 hover:bg-blue-100">
+                            <span className="font-black">Upload ảnh bài làm</span>
+                            <span className="mt-1 text-xs font-semibold opacity-75">Chấp nhận JPG, PNG, HEIC/WebP nếu trình duyệt hỗ trợ.</span>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                                    reader.onload = () => onUpdateAnswer(question, String(reader.result || ''), `Upload ảnh bài giấy: ${file.name}`);
+                                    reader.readAsDataURL(file);
+                                }}
+                            />
+                        </label>
                     </div>
                 )}
 
@@ -584,16 +617,17 @@ function QuestionCard({
     );
 }
 
-function MediaStrip({ media }: { media?: ExamMedia[] }) {
+function MediaStrip({ media, compact = false }: { media?: ExamMedia[]; compact?: boolean }) {
     if (!media?.length) return null;
     return (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className={`${compact ? 'mt-2 grid gap-2 sm:grid-cols-2' : 'mt-5 grid gap-3 sm:grid-cols-2'}`}>
             {media.map((item, index) => (
-                <div key={`${item.url}-${index}`} className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
-                    {item.type === 'image' && <img src={item.url} alt={item.name || 'exam media'} className="h-48 w-full object-cover" />}
+                <div key={`${item.url}-${index}`} className={`overflow-hidden border border-slate-200 bg-white ${compact ? 'rounded-2xl' : 'rounded-3xl'}`}>
+                    {item.type === 'image' && <img src={item.url} alt={item.name || 'exam media'} className={`${compact ? 'h-28' : 'h-48'} w-full object-contain`} />}
                     {item.type === 'audio' && <audio controls src={item.url} className="w-full p-3" />}
                     {item.type === 'video' && <video controls src={item.url} className="max-h-64 w-full" />}
-                    <div className="px-4 py-2 text-xs font-bold text-slate-700">{item.name || 'Tệp đính kèm'}</div>
+                    {item.type === 'file' && <a href={item.url} download={item.name} className="block p-3 text-xs font-black text-blue-700">{item.name || 'Tệp đính kèm'}</a>}
+                    {item.type !== 'file' && <div className="px-4 py-2 text-xs font-bold text-slate-700">{item.name || 'Tệp đính kèm'}</div>}
                 </div>
             ))}
         </div>
