@@ -24,18 +24,30 @@ echo "--- Health check at $TIMESTAMP ---" >> "$LOG_FILE"
 # Check NGINX (80)
 check_port 80 "NGINX (Web Portal)"
 if [ $? -ne 0 ]; then
-    echo "[$TIMESTAMP] Attempting to start NGINX..." >> "$LOG_FILE"
+    echo "[$TIMESTAMP] Attempting to restart NGINX..." >> "$LOG_FILE"
     systemctl restart nginx >> "$LOG_FILE" 2>&1
+fi
+
+# Check Backend (3000)
+check_port 3000 "Express Backend"
+if [ $? -ne 0 ]; then
+    echo "[$TIMESTAMP] Attempting to restart LMS Backend..." >> "$LOG_FILE"
+    systemctl restart lms-backend >> "$LOG_FILE" 2>&1
 fi
 
 # Check Frontend (5173)
 check_port 5173 "Vite Frontend"
-
-# Check Backend (3000)
-check_port 3000 "Express Backend"
+if [ $? -ne 0 ]; then
+    echo "[$TIMESTAMP] Attempting to restart LMS Frontend..." >> "$LOG_FILE"
+    systemctl restart lms-frontend >> "$LOG_FILE" 2>&1
+fi
 
 # Check Forwarder (34381)
 check_port 34381 "Port Forwarder 34381"
+if [ $? -ne 0 ]; then
+    echo "[$TIMESTAMP] Attempting to restart LMS Forwarder..." >> "$LOG_FILE"
+    systemctl restart lms-forwarder >> "$LOG_FILE" 2>&1
+fi
 
 # Check HTTP 200 responses
 HTTP_80=$(python3 -c "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 80)); s.send(b'GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'); print(s.recv(20).decode('utf-8', 'ignore'))" 2>/dev/null)

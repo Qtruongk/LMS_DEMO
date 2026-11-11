@@ -1,0 +1,22 @@
+[Unit]
+Description=VAT LMS Backend Service (Express API)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/lms_demo/backend
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+EnvironmentFile=-/root/lms_demo/backend/.env
+ExecStart=/root/lms_demo/backend/node_modules/.bin/tsx watch src/index.ts
+Restart=always
+RestartSec=3
+TimeoutStopSec=5
+KillMode=control-group
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lms-backend
+
+[Install]
+WantedBy=multi-user.target

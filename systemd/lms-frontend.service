@@ -1,0 +1,20 @@
+[Unit]
+Description=VAT LMS Frontend Service (Vite React)
+After=network.target lms-backend.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/lms_demo/frontend
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/root/lms_demo/frontend/node_modules/.bin/vite
+Restart=always
+RestartSec=3
+TimeoutStopSec=5
+KillMode=control-group
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lms-frontend
+
+[Install]
+WantedBy=multi-user.target

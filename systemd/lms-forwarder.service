@@ -1,0 +1,20 @@
+[Unit]
+Description=VAT LMS Port 34381 Forwarder Service
+After=network.target lms-frontend.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/lms_demo
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/usr/local/bin/node forwarder_34381.cjs
+Restart=always
+RestartSec=3
+TimeoutStopSec=5
+KillMode=control-group
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lms-forwarder
+
+[Install]
+WantedBy=multi-user.target
